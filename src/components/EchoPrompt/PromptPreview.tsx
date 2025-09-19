@@ -80,13 +80,18 @@ ${text}
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="p-6 border-b border-border/50 bg-gradient-surface">
+      <div className="p-6 border-b border-border/30 bg-gradient-to-r from-background/90 to-background/70 backdrop-blur-sm">
         <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-xl font-bold font-display">Live Preview</h2>
-            <p className="text-sm text-muted-foreground">Real-time prompt generation</p>
+          <div className="flex items-center space-x-3">
+            <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-600 shadow-lg">
+              <Eye className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold font-display bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">Live Preview</h2>
+              <p className="text-sm text-muted-foreground font-medium">Real-time prompt generation</p>
+            </div>
           </div>
-          <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20">
+          <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 border-emerald-200">
             <Eye className="w-3 h-3 mr-1" />
             Live
           </Badge>
