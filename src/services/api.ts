@@ -176,10 +176,17 @@ class ApiService {
       keywords: string[];
     };
   }>> {
+    // Get user's Gemini API key from localStorage
+    const geminiApiKey = localStorage.getItem('gemini_api_key');
+    
     const response = await fetch(`${API_BASE_URL}/prompts/generate`, {
       method: 'POST',
       headers: this.getAuthHeaders(),
-      body: JSON.stringify({ promptData, optimize }),
+      body: JSON.stringify({ 
+        promptData, 
+        optimize, 
+        ...(geminiApiKey && { geminiApiKey })
+      }),
     });
     return this.handleResponse(response);
   }

@@ -5,10 +5,17 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || 'AIzaSyB7O_pC
 export class GeminiService {
   private model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" })
 
-  async generatePrompt(promptData: any, optimize: boolean = false): Promise<string> {
+  async generatePrompt(promptData: any, optimize: boolean = false, customApiKey?: string): Promise<string> {
     try {
+      // Use custom API key if provided, otherwise use the default
+      const apiKey = customApiKey || process.env.GEMINI_API_KEY || 'AIzaSyB7O_pCoXdzsMAytdUssXNuK0ApF-3PIXg';
+      
+      // Create a new instance with the custom API key if provided
+      const genAI = customApiKey ? new GoogleGenerativeAI(apiKey) : this.model;
+      const model = customApiKey ? genAI.getGenerativeModel({ model: "gemini-1.5-flash" }) : this.model;
+      
       const systemPrompt = this.buildSystemPrompt(promptData, optimize);
-      const result = await this.model.generateContent(systemPrompt);
+      const result = await model.generateContent(systemPrompt);
       const response = await result.response;
       return response.text();
     } catch (error) {

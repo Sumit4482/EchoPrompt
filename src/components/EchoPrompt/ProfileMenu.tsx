@@ -21,10 +21,12 @@ import {
   LogOut,
   Crown,
   Zap,
+  Key,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
+import GeminiApiDialog from "./GeminiApiDialog";
 
 interface ProfileMenuProps {
   onOpenSettings: () => void;
@@ -35,6 +37,7 @@ const ProfileMenu = ({ onOpenSettings }: ProfileMenuProps) => {
   const { user, logout, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
+  const [isGeminiDialogOpen, setIsGeminiDialogOpen] = useState(false);
 
   // Mock user data - replace with real user data from context
   const mockUser = {
@@ -82,6 +85,10 @@ const ProfileMenu = ({ onOpenSettings }: ProfileMenuProps) => {
           });
           break;
           
+        case 'gemini-api':
+          setIsGeminiDialogOpen(true);
+          break;
+          
         case 'help':
           window.open('https://docs.echoprompt.com', '_blank');
           break;
@@ -126,6 +133,7 @@ const ProfileMenu = ({ onOpenSettings }: ProfileMenuProps) => {
   }
 
   return (
+    <>
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="sm" className="hover-glow relative">
@@ -206,6 +214,18 @@ const ProfileMenu = ({ onOpenSettings }: ProfileMenuProps) => {
         >
           <Settings className="w-4 h-4 mr-2" />
           <span>App Settings</span>
+        </DropdownMenuItem>
+        
+        <DropdownMenuItem 
+          onClick={() => handleMenuAction('gemini-api')}
+          disabled={isLoading}
+          className="cursor-pointer"
+        >
+          <Key className="w-4 h-4 mr-2" />
+          <span>Gemini API Key</span>
+          <Badge variant="outline" className="ml-auto text-xs">
+            AI
+          </Badge>
         </DropdownMenuItem>
         
         <DropdownMenuSeparator />
@@ -297,6 +317,13 @@ const ProfileMenu = ({ onOpenSettings }: ProfileMenuProps) => {
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+    
+    {/* Gemini API Key Dialog */}
+    <GeminiApiDialog 
+      isOpen={isGeminiDialogOpen} 
+      onClose={() => setIsGeminiDialogOpen(false)} 
+    />
+    </>
   );
 };
 

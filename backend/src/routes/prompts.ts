@@ -36,7 +36,7 @@ router.post('/generate', optionalAuth, [
       } as ApiResponse);
     }
 
-    const { promptData, templateId, optimize = false } = req.body;
+    const { promptData, templateId, optimize = false, geminiApiKey } = req.body;
 
     // Validate prompt data
     const validation = PromptGenerator.validatePromptData(promptData);
@@ -52,7 +52,10 @@ router.post('/generate', optionalAuth, [
     let content: string;
     try {
       console.log('🤖 Attempting Gemini AI generation...');
-      content = await geminiService.generatePrompt(promptData, optimize);
+      if (geminiApiKey) {
+        console.log('🔑 Using user-provided API key');
+      }
+      content = await geminiService.generatePrompt(promptData, optimize, geminiApiKey);
       console.log('✅ Gemini AI generation successful');
       console.log('📝 Generated content length:', content.length);
     } catch (error) {
