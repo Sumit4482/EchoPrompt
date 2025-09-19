@@ -14,34 +14,41 @@ interface PromptPreviewProps {
 
 const PromptPreview = ({ prompt, onPromptChange }: PromptPreviewProps) => {
   const [activeTab, setActiveTab] = useState("plain");
-  const [isEditing, setIsEditing] = useState(false);
-  const [editedPrompt, setEditedPrompt] = useState(prompt);
   const { toast } = useToast();
 
-  const handleEdit = () => {
-    setEditedPrompt(prompt);
-    setIsEditing(true);
-  };
-
-  const handleSaveEdit = () => {
+  const handlePromptEdit = (newValue: string) => {
     if (onPromptChange) {
-      onPromptChange(editedPrompt);
+      // If editing formatted content, try to extract the original prompt
+      let actualPrompt = newValue;
+      
+      if (activeTab === "markdown") {
+        // Remove markdown formatting to get back to plain text
+        actualPrompt = newValue
+          .replace(/^# AI Prompt\n\n/, '')
+          .replace(/\n\n---\n\*Generated with EchoPrompt\*$/, '');
+      } else if (activeTab === "json") {
+        // Try to parse JSON and extract the prompt field
+        try {
+          const parsed = JSON.parse(newValue);
+          actualPrompt = parsed.prompt || newValue;
+        } catch {
+          // If JSON is invalid, keep the raw text
+          actualPrompt = newValue;
+        }
+      } else if (activeTab === "table") {
+        // Remove numbering from table format
+        actualPrompt = newValue
+          .split('\n')
+          .map(line => line.replace(/^\d+\.\s/, ''))
+          .join('\n');
+      }
+      
+      onPromptChange(actualPrompt);
     }
-    setIsEditing(false);
-    toast({
-      title: "Saved!",
-      description: "Prompt updated successfully",
-    });
-  };
-
-  const handleCancelEdit = () => {
-    setEditedPrompt(prompt);
-    setIsEditing(false);
   };
 
   const handleCopy = () => {
-    const textToCopy = isEditing ? editedPrompt : prompt;
-    navigator.clipboard.writeText(textToCopy);
+    navigator.clipboard.writeText(prompt);
     toast({
       title: "Copied!",
       description: "Prompt copied to clipboard",
@@ -110,58 +117,21 @@ ${text}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-3">
             <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-600 shadow-lg">
-              {isEditing ? <Edit3 className="w-6 h-6 text-white" /> : <Eye className="w-6 h-6 text-white" />}
+              <Edit3 className="w-6 h-6 text-white" />
             </div>
             <div>
               <h2 className="text-xl font-bold font-display bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
-                {isEditing ? "Edit Prompt" : "Live Preview"}
+                Prompt Editor
               </h2>
               <p className="text-sm text-muted-foreground font-medium">
-                {isEditing ? "Modify your prompt" : "Real-time prompt generation"}
+                Edit your prompt in {activeTab} format
               </p>
             </div>
           </div>
-          <div className="flex items-center space-x-2">
-            {isEditing ? (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleSaveEdit}
-                  className="text-green-600 border-green-200 hover:bg-green-50"
-                >
-                  <Check className="w-4 h-4 mr-1" />
-                  Save
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleCancelEdit}
-                  className="text-red-600 border-red-200 hover:bg-red-50"
-                >
-                  <X className="w-4 h-4 mr-1" />
-                  Cancel
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleEdit}
-                  disabled={!prompt}
-                  className="text-blue-600 border-blue-200 hover:bg-blue-50"
-                >
-                  <Edit3 className="w-4 h-4 mr-1" />
-                  Edit
-                </Button>
-                <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 border-emerald-200">
-                  <Eye className="w-3 h-3 mr-1" />
-                  Live
-                </Badge>
-              </>
-            )}
-          </div>
+          <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 border-emerald-200">
+            <Edit3 className="w-3 h-3 mr-1" />
+            Editable
+          </Badge>
         </div>
 
         {/* Format Tabs */}
@@ -192,22 +162,18 @@ ${text}
         <Card className="h-full m-6 mt-0 glass border-border/50">
           <CardContent className="p-0 h-full">
             <div className="h-full max-h-[calc(100vh-300px)] overflow-y-auto p-6">
-              {isEditing ? (
+              {prompt ? (
                 <Textarea
-                  value={editedPrompt}
-                  onChange={(e) => setEditedPrompt(e.target.value)}
+                  value={getFormattedContent()}
+                  onChange={(e) => handlePromptEdit(e.target.value)}
                   className="w-full h-full max-h-[calc(100vh-350px)] resize-none border-0 bg-transparent text-sm font-mono leading-relaxed focus:ring-0 focus:outline-none"
-                  placeholder="Edit your prompt here..."
+                  placeholder={`Your ${activeTab} formatted prompt will appear here. You can edit it directly...`}
                 />
-              ) : prompt ? (
-                <pre className="whitespace-pre-wrap text-sm font-mono leading-relaxed text-foreground">
-                  {getFormattedContent()}
-                </pre>
               ) : (
                 <div className="flex items-center justify-center h-full text-center">
                   <div className="space-y-2">
                     <div className="w-12 h-12 mx-auto rounded-full bg-gradient-primary/10 flex items-center justify-center">
-                      <Eye className="w-6 h-6 text-primary" />
+                      <Edit3 className="w-6 h-6 text-primary" />
                     </div>
                     <p className="text-muted-foreground">
                       Start filling out the fields to see your prompt here
