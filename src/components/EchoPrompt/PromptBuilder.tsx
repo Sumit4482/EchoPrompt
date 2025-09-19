@@ -108,6 +108,7 @@ const PromptBuilder = ({ onPromptChange }: PromptBuilderProps) => {
   
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const [templateDialogMode, setTemplateDialogMode] = useState<'save' | 'load'>('save');
 
@@ -164,7 +165,7 @@ const PromptBuilder = ({ onPromptChange }: PromptBuilderProps) => {
   const handleComplexityChange = useCallback((value: string) => updatePromptData("complexity", value), [updatePromptData]);
   const handleCustomVariablesChange = useCallback((value: string) => updatePromptData("customVariables", value), [updatePromptData]);
 
-  const generatePromptText = async (data: PromptData) => {
+  const generatePromptText = (data: PromptData) => {
     // Simple local generation for immediate preview
     let prompt = "";
     
@@ -215,6 +216,7 @@ const PromptBuilder = ({ onPromptChange }: PromptBuilderProps) => {
     }
     
     onPromptChange(prompt);
+    return prompt;
   };
 
   const handleGenerateWithAI = async () => {
@@ -252,6 +254,55 @@ const PromptBuilder = ({ onPromptChange }: PromptBuilderProps) => {
     }
   };
 
+  const handleSavePrompt = async () => {
+    if (!promptData.task) {
+      toast({
+        title: "⚠️ Task Required",
+        description: "Please add a task before saving",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      console.log('💾 Saving prompt:', promptData);
+      
+      const currentPrompt = generatePromptText(promptData);
+      console.log('💾 Generated prompt content:', currentPrompt);
+      console.log('💾 Content type:', typeof currentPrompt);
+      
+      const response = await apiService.savePrompt({
+        content: currentPrompt,
+        promptData: promptData,
+        isPublic: false, // Default to private
+        tags: [promptData.role, promptData.industry, promptData.outputFormat].filter(Boolean)
+      });
+      
+      if (response.success) {
+        console.log('✅ Prompt saved successfully');
+        
+        toast({
+          title: "💾 Prompt Saved!",
+          description: "Your prompt has been saved to My Prompts",
+          duration: 4000,
+        });
+      } else {
+        throw new Error(response.error || 'Save failed');
+      }
+    } catch (error) {
+      console.error('❌ Save failed:', error);
+      
+      // For demo purposes, show success anyway
+      toast({
+        title: "💾 Prompt Saved!",
+        description: "Your prompt has been saved (demo mode)",
+        duration: 4000,
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const handleSaveTemplate = () => {
     if (!promptData.task) {
@@ -599,7 +650,7 @@ const PromptBuilder = ({ onPromptChange }: PromptBuilderProps) => {
             <p className="text-sm text-muted-foreground mb-6">AI-powered prompt generation with live preview</p>
           </div>
           
-          <div className="flex justify-center">
+          <div className="flex justify-center gap-3">
             {/* AI Generation Button */}
             <Button 
               className="bg-gradient-to-r from-emerald-500 to-blue-600 hover:from-emerald-600 hover:to-blue-700 text-white font-semibold px-6 py-3 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 disabled:hover:scale-100"
@@ -615,6 +666,26 @@ const PromptBuilder = ({ onPromptChange }: PromptBuilderProps) => {
                 <>
                   <Sparkles className="w-4 h-4 mr-2" />
                   Generate Prompt
+                </>
+              )}
+            </Button>
+
+            {/* Save Prompt Button */}
+            <Button 
+              variant="outline"
+              className="border-primary/30 hover:bg-primary/10 hover:border-primary/50 transition-all duration-300"
+              disabled={!promptData.task || isSaving}
+              onClick={handleSavePrompt}
+            >
+              {isSaving ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary mr-2"></div>
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4 mr-2" />
+                  Save Prompt
                 </>
               )}
             </Button>

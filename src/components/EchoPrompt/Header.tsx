@@ -54,13 +54,12 @@ const Header = () => {
                   </div>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="cursor-pointer">
+                <DropdownMenuItem onClick={() => navigate('/library')} className="cursor-pointer">
                   <Sparkles className="w-4 h-4 mr-3" />
                   <div>
                     <p className="font-medium">Browse Library</p>
                     <p className="text-xs text-muted-foreground">Discover public templates</p>
                   </div>
-                  <Badge variant="secondary" className="ml-auto text-xs">Soon</Badge>
                 </DropdownMenuItem>
                 <DropdownMenuItem className="cursor-pointer">
                   <FileText className="w-4 h-4 mr-3" />
@@ -102,6 +101,10 @@ const Header = () => {
                 <DropdownMenuItem onClick={() => navigate('/my-prompts')} className="cursor-pointer">
                   <FileText className="w-4 h-4 mr-2" />
                   My Prompts
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate('/library')} className="cursor-pointer">
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  Library
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

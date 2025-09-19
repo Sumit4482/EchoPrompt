@@ -77,11 +77,14 @@ export interface GeneratedPrompt {
   content: string;
   promptData: PromptData;
   templateId?: string;
+  isPublic?: boolean;
+  tags?: string[];
   metadata: {
     version: string;
     generatedAt: string;
     optimized: boolean;
     aiEnhanced: boolean;
+    generationTime?: number;
   };
   analytics: {
     views: number;
@@ -90,7 +93,9 @@ export interface GeneratedPrompt {
   };
   wordCount: number;
   characterCount: number;
+  keywords?: string[];
   createdAt: string;
+  createdBy?: any;
 }
 
 class ApiService {
@@ -236,6 +241,37 @@ class ApiService {
     return response.blob();
   }
 
+  async updatePrompt(id: string, updates: Partial<GeneratedPrompt>): Promise<ApiResponse<GeneratedPrompt>> {
+    const response = await fetch(`${API_BASE_URL}/prompts/${id}`, {
+      method: 'PUT',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(updates),
+    });
+    return this.handleResponse<GeneratedPrompt>(response);
+  }
+
+  async deletePrompt(id: string): Promise<ApiResponse> {
+    const response = await fetch(`${API_BASE_URL}/prompts/${id}`, {
+      method: 'DELETE',
+      headers: this.getAuthHeaders(),
+    });
+    return this.handleResponse(response);
+  }
+
+  async savePrompt(promptData: {
+    content: string;
+    promptData: PromptData;
+    isPublic?: boolean;
+    tags?: string[];
+  }): Promise<ApiResponse<GeneratedPrompt>> {
+    const response = await fetch(`${API_BASE_URL}/prompts/save`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(promptData),
+    });
+    return this.handleResponse<GeneratedPrompt>(response);
+  }
+
   // Templates
   async getTemplates(params?: {
     page?: number;
@@ -308,6 +344,50 @@ class ApiService {
   async getCategories(): Promise<ApiResponse<string[]>> {
     const response = await fetch(`${API_BASE_URL}/templates/categories/list`);
     return this.handleResponse<string[]>(response);
+  }
+
+  async getPublicTemplates(params?: {
+    page?: number;
+    limit?: number;
+    category?: string;
+    search?: string;
+    sort?: string;
+    order?: 'asc' | 'desc';
+  }): Promise<ApiResponse<Template[]>> {
+    const queryParams = new URLSearchParams();
+    queryParams.append('isPublic', 'true');
+    if (params?.page) queryParams.append('page', params.page.toString());
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    if (params?.category) queryParams.append('category', params.category);
+    if (params?.search) queryParams.append('search', params.search);
+    if (params?.sort) queryParams.append('sort', params.sort);
+    if (params?.order) queryParams.append('order', params.order);
+
+    const response = await fetch(`${API_BASE_URL}/templates?${queryParams}`, {
+      headers: this.getAuthHeaders(),
+    });
+    return this.handleResponse<Template[]>(response);
+  }
+
+  async getPublicPrompts(params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    sort?: string;
+    order?: 'asc' | 'desc';
+  }): Promise<ApiResponse<GeneratedPrompt[]>> {
+    const queryParams = new URLSearchParams();
+    queryParams.append('isPublic', 'true');
+    if (params?.page) queryParams.append('page', params.page.toString());
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    if (params?.search) queryParams.append('search', params.search);
+    if (params?.sort) queryParams.append('sort', params.sort);
+    if (params?.order) queryParams.append('order', params.order);
+
+    const response = await fetch(`${API_BASE_URL}/prompts/public?${queryParams}`, {
+      headers: this.getAuthHeaders(),
+    });
+    return this.handleResponse<GeneratedPrompt[]>(response);
   }
 
   // Analytics

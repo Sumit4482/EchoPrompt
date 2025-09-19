@@ -19,6 +19,9 @@ export interface IPrompt extends Document {
   };
   templateId?: string;
   userId?: string;
+  createdBy?: string;
+  isPublic?: boolean;
+  tags?: string[];
   metadata: {
     version: string;
     generatedAt: Date;
@@ -69,6 +72,19 @@ const PromptSchema = new Schema<IPrompt>({
     type: String,
     default: 'anonymous'
   },
+  createdBy: {
+    type: Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  isPublic: {
+    type: Boolean,
+    default: false
+  },
+  tags: [{
+    type: String,
+    trim: true,
+    lowercase: true
+  }],
   metadata: {
     version: {
       type: String,
@@ -136,12 +152,18 @@ const PromptSchema = new Schema<IPrompt>({
 // Indexes for better query performance
 PromptSchema.index({ content: 'text' });
 PromptSchema.index({ userId: 1 });
+PromptSchema.index({ createdBy: 1 });
 PromptSchema.index({ templateId: 1 });
 PromptSchema.index({ createdAt: -1 });
+PromptSchema.index({ isPublic: 1 });
+PromptSchema.index({ tags: 1 });
 PromptSchema.index({ 'metadata.optimized': 1 });
 PromptSchema.index({ 'metadata.aiEnhanced': 1 });
 PromptSchema.index({ wordCount: 1 });
 PromptSchema.index({ keywords: 1 });
+// Compound indexes for common queries
+PromptSchema.index({ isPublic: 1, createdAt: -1 });
+PromptSchema.index({ createdBy: 1, createdAt: -1 });
 
 // Virtual for average rating
 PromptSchema.virtual('averageRating').get(function() {

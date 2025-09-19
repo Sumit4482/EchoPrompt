@@ -1,6 +1,6 @@
 import express from 'express';
 import { body, query, validationResult } from 'express-validator';
-import Template from '../models/Template';
+import { Template } from '../models/Template';
 import { authenticate, optionalAuth } from '../middleware/auth';
 import { AuthenticatedRequest, ApiResponse, TemplateQuery } from '../types';
 import { PromptGenerator } from '../utils/promptGenerator';
@@ -19,6 +19,7 @@ router.get('/', optionalAuth, [
   query('order').optional().isIn(['asc', 'desc']).withMessage('Order must be asc or desc'),
 ], async (req: AuthenticatedRequest, res) => {
   try {
+
     // Check for validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -89,7 +90,6 @@ router.get('/', optionalAuth, [
 
     // Execute query
     const templates = await Template.find(query)
-      .populate('createdBy', 'username firstName lastName')
       .sort(sortObj)
       .skip(skip)
       .limit(limitNum);
@@ -110,9 +110,11 @@ router.get('/', optionalAuth, [
 
   } catch (error) {
     console.error('Get templates error:', error);
+    console.error('Error stack:', error.stack);
     res.status(500).json({
       success: false,
-      error: 'Server error'
+      error: 'Server error',
+      details: error.message
     } as ApiResponse);
   }
 });
@@ -122,8 +124,7 @@ router.get('/', optionalAuth, [
 // @access  Public/Private
 router.get('/:id', optionalAuth, async (req: AuthenticatedRequest, res) => {
   try {
-    const template = await Template.findById(req.params.id)
-      .populate('createdBy', 'username firstName lastName avatar');
+    const template = await Template.findById(req.params.id);
 
     if (!template) {
       return res.status(404).json({

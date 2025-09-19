@@ -1,9 +1,13 @@
+import dotenv from 'dotenv';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import compression from 'compression';
 import rateLimit from 'express-rate-limit';
+
+// Load environment variables
+dotenv.config();
 import { errorHandler } from './middleware/errorHandler';
 import { requestLogger } from './middleware/requestLogger';
 import { connectDatabase } from './config/database';
@@ -11,6 +15,11 @@ import { Template } from './models/Template';
 import { Prompt } from './models/Prompt';
 import { UserPreferences } from './models/UserPreferences';
 import { geminiService } from './services/geminiService';
+import authRoutes from './routes/auth';
+import promptRoutes from './routes/prompts';
+import templateRoutes from './routes/templates';
+import userRoutes from './routes/users';
+import analyticsRoutes from './routes/analytics';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -116,7 +125,14 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Auth endpoints
+// API Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/prompts', promptRoutes);
+app.use('/api/templates', templateRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/analytics', analyticsRoutes);
+
+// Legacy endpoints (keeping for backward compatibility)
 app.post('/api/auth/login', (req, res) => {
   console.log('📨 LOGIN REQUEST RECEIVED');
   console.log('Headers:', req.headers);

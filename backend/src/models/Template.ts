@@ -22,6 +22,7 @@ export interface ITemplate extends Document {
   tags?: string[];
   isPublic?: boolean;
   userId?: string;
+  createdBy?: string;
   usageCount: number;
   rating: {
     average: number;
@@ -29,6 +30,7 @@ export interface ITemplate extends Document {
   };
   createdAt: Date;
   updatedAt: Date;
+  incrementUsage(): Promise<ITemplate>;
 }
 
 const TemplateSchema = new Schema<ITemplate>({
@@ -75,6 +77,10 @@ const TemplateSchema = new Schema<ITemplate>({
     type: String,
     default: 'anonymous'
   },
+  createdBy: {
+    type: Schema.Types.ObjectId,
+    ref: 'User'
+  },
   usageCount: {
     type: Number,
     default: 0,
@@ -113,5 +119,11 @@ TemplateSchema.index({ 'rating.average': -1 });
 TemplateSchema.virtual('popularityScore').get(function() {
   return (this.usageCount * 0.7) + (this.rating.average * this.rating.count * 0.3);
 });
+
+// Instance method to increment usage count
+TemplateSchema.methods.incrementUsage = function() {
+  this.usageCount += 1;
+  return this.save();
+};
 
 export const Template = mongoose.model<ITemplate>('Template', TemplateSchema);

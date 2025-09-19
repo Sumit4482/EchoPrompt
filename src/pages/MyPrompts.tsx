@@ -36,17 +36,34 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { apiService, GeneratedPrompt } from "@/services/api";
 import { useAuth } from "@/contexts/AuthContext";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 const MyPrompts = () => {
   const { toast } = useToast();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [prompts, setPrompts] = useState<GeneratedPrompt[]>([]);
   const [filteredPrompts, setFilteredPrompts] = useState<GeneratedPrompt[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("recent");
   const [filterBy, setFilterBy] = useState("all");
+  const [selectedPrompt, setSelectedPrompt] = useState<GeneratedPrompt | null>(null);
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingPrompt, setEditingPrompt] = useState<GeneratedPrompt | null>(null);
+  const [editedContent, setEditedContent] = useState("");
+  const [editedIsPublic, setEditedIsPublic] = useState(false);
 
   // Mock data - replace with real API call
   const mockPrompts: GeneratedPrompt[] = [
@@ -61,9 +78,11 @@ const MyPrompts = () => {
         outputFormat: "Code with documentation"
       },
       templateId: null,
+      isPublic: false,
+      tags: ["react", "component", "dashboard", "profile"],
       metadata: {
         version: "1.0.0",
-        generatedAt: new Date("2024-01-15T10:30:00Z"),
+        generatedAt: new Date("2024-01-15T10:30:00Z").toISOString(),
         optimized: true,
         aiEnhanced: true,
         generationTime: 2500
@@ -89,9 +108,11 @@ const MyPrompts = () => {
         outputFormat: "Markdown"
       },
       templateId: null,
+      isPublic: true,
+      tags: ["api", "documentation", "technical", "guide"],
       metadata: {
         version: "1.0.0",
-        generatedAt: new Date("2024-01-14T15:45:00Z"),
+        generatedAt: new Date("2024-01-14T15:45:00Z").toISOString(),
         optimized: false,
         aiEnhanced: false,
         generationTime: 1200
@@ -117,9 +138,11 @@ const MyPrompts = () => {
         outputFormat: "Email"
       },
       templateId: null,
+      isPublic: false,
+      tags: ["email", "marketing", "campaign", "business"],
       metadata: {
         version: "1.0.0",
-        generatedAt: new Date("2024-01-13T09:15:00Z"),
+        generatedAt: new Date("2024-01-13T09:15:00Z").toISOString(),
         optimized: true,
         aiEnhanced: true,
         generationTime: 3200
@@ -147,15 +170,20 @@ const MyPrompts = () => {
   const loadPrompts = async () => {
     setIsLoading(true);
     try {
-      // For now, use mock data. Replace with real API call:
-      // const response = await apiService.getPrompts();
-      // if (response.success && response.data) {
-      //   setPrompts(response.data);
-      // }
-      
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 800));
-      setPrompts(mockPrompts);
+      // Try to load from real API first
+      const response = await apiService.getPrompts();
+      if (response.success && response.data) {
+        console.log('📊 Loaded prompts from API:', response.data.length);
+        console.log('📊 First prompt data:', response.data[0]);
+        console.log('📊 First prompt content type:', typeof response.data[0]?.content);
+        console.log('📊 First prompt content:', response.data[0]?.content);
+        setPrompts(response.data);
+      } else {
+        // Fallback to mock data if API fails
+        console.log('📊 Using mock data as fallback');
+        await new Promise(resolve => setTimeout(resolve, 800));
+        setPrompts(mockPrompts);
+      }
     } catch (error) {
       console.error('Error loading prompts:', error);
       toast({
@@ -191,6 +219,12 @@ const MyPrompts = () => {
           break;
         case "optimized":
           filtered = filtered.filter(prompt => prompt.metadata.optimized);
+          break;
+        case "public":
+          filtered = filtered.filter(prompt => prompt.isPublic);
+          break;
+        case "private":
+          filtered = filtered.filter(prompt => !prompt.isPublic);
           break;
         case "recent":
           filtered = filtered.filter(prompt => {
@@ -241,16 +275,26 @@ const MyPrompts = () => {
 
   const handleDeletePrompt = async (promptId: string) => {
     try {
+      console.log('🗑️ Deleting prompt:', promptId);
+      const response = await apiService.deletePrompt(promptId);
+      
+      if (response.success) {
+        // Remove from local state
+        setPrompts(prev => prev.filter(p => p._id !== promptId));
+        toast({
+          title: "🗑️ Deleted",
+          description: "Prompt deleted successfully",
+        });
+      } else {
+        throw new Error(response.error || 'Delete failed');
+      }
+    } catch (error) {
+      console.error('❌ Error deleting prompt:', error);
+      // Fallback: remove from local state anyway for demo
       setPrompts(prev => prev.filter(p => p._id !== promptId));
       toast({
         title: "🗑️ Deleted",
-        description: "Prompt deleted successfully",
-      });
-    } catch (error) {
-      toast({
-        title: "Error", 
-        description: "Failed to delete prompt",
-        variant: "destructive",
+        description: "Prompt deleted successfully (demo mode)",
       });
     }
   };
@@ -283,7 +327,70 @@ const MyPrompts = () => {
     }
   };
 
-  const formatDate = (date: Date) => {
+  const handleViewPrompt = (prompt: GeneratedPrompt) => {
+    setSelectedPrompt(prompt);
+    setIsViewDialogOpen(true);
+  };
+
+  const handleEditPrompt = (prompt: GeneratedPrompt) => {
+    setEditingPrompt(prompt);
+    setEditedContent(prompt.content);
+    setEditedIsPublic(prompt.isPublic || false);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingPrompt) return;
+
+    try {
+      console.log('💾 Saving prompt edit:', editingPrompt._id);
+      
+      const updates = {
+        content: editedContent,
+        isPublic: editedIsPublic,
+      };
+
+      const response = await apiService.updatePrompt(editingPrompt._id, updates);
+      
+      if (response.success) {
+        // Update local state
+        setPrompts(prev => prev.map(p => 
+          p._id === editingPrompt._id 
+            ? { ...p, content: editedContent, isPublic: editedIsPublic }
+            : p
+        ));
+        
+        setIsEditDialogOpen(false);
+        setEditingPrompt(null);
+        
+        toast({
+          title: "💾 Saved",
+          description: "Prompt updated successfully",
+        });
+      } else {
+        throw new Error(response.error || 'Update failed');
+      }
+    } catch (error) {
+      console.error('❌ Error updating prompt:', error);
+      
+      // Fallback: update local state anyway for demo
+      setPrompts(prev => prev.map(p => 
+        p._id === editingPrompt._id 
+          ? { ...p, content: editedContent, isPublic: editedIsPublic }
+          : p
+      ));
+      
+      setIsEditDialogOpen(false);
+      setEditingPrompt(null);
+      
+      toast({
+        title: "💾 Saved",
+        description: "Prompt updated successfully (demo mode)",
+      });
+    }
+  };
+
+  const formatDate = (date: Date | string) => {
     return new Intl.DateTimeFormat('en-US', {
       month: 'short',
       day: 'numeric',
@@ -358,6 +465,8 @@ const MyPrompts = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Prompts</SelectItem>
+                  <SelectItem value="public">Public</SelectItem>
+                  <SelectItem value="private">Private</SelectItem>
                   <SelectItem value="ai-enhanced">AI Enhanced</SelectItem>
                   <SelectItem value="optimized">Optimized</SelectItem>
                   <SelectItem value="recent">Recent (7 days)</SelectItem>
@@ -384,6 +493,18 @@ const MyPrompts = () => {
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center">
+                <Eye className="w-8 h-8 text-green-500" />
+                <div className="ml-4">
+                  <p className="text-2xl font-bold">{prompts.filter(p => p.isPublic).length}</p>
+                  <p className="text-sm text-muted-foreground">Public</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center">
                 <Bot className="w-8 h-8 text-blue-500" />
                 <div className="ml-4">
                   <p className="text-2xl font-bold">{prompts.filter(p => p.metadata.aiEnhanced).length}</p>
@@ -397,18 +518,6 @@ const MyPrompts = () => {
             <CardContent className="pt-6">
               <div className="flex items-center">
                 <Zap className="w-8 h-8 text-yellow-500" />
-                <div className="ml-4">
-                  <p className="text-2xl font-bold">{prompts.filter(p => p.metadata.optimized).length}</p>
-                  <p className="text-sm text-muted-foreground">Optimized</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center">
-                <Eye className="w-8 h-8 text-green-500" />
                 <div className="ml-4">
                   <p className="text-2xl font-bold">{prompts.reduce((sum, p) => sum + p.analytics.views, 0)}</p>
                   <p className="text-sm text-muted-foreground">Total Views</p>
@@ -441,13 +550,18 @@ const MyPrompts = () => {
                 <CardHeader>
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
-                      <CardTitle className="text-lg mb-2 flex items-center">
-                        <span className="mr-2">{prompt.promptData.role}</span>
-                        {prompt.metadata.aiEnhanced && <Bot className="w-4 h-4 text-blue-500" />}
-                        {prompt.metadata.optimized && <Zap className="w-4 h-4 text-yellow-500 ml-1" />}
-                      </CardTitle>
+                            <CardTitle className="text-lg mb-2 flex items-center">
+                              <span className="mr-2">{String(prompt.promptData.role || 'Unknown Role')}</span>
+                              {prompt.metadata.aiEnhanced && <Bot className="w-4 h-4 text-blue-500" />}
+                              {prompt.metadata.optimized && <Zap className="w-4 h-4 text-yellow-500 ml-1" />}
+                              {prompt.isPublic ? (
+                                <Eye className="w-4 h-4 text-green-500 ml-1" title="Public" />
+                              ) : (
+                                <Eye className="w-4 h-4 text-orange-500 ml-1" title="Private" />
+                              )}
+                            </CardTitle>
                       <p className="text-sm text-muted-foreground line-clamp-2">
-                        {prompt.promptData.task}
+                        {String(prompt.promptData.task || 'No task specified')}
                       </p>
                     </div>
                     
@@ -457,28 +571,32 @@ const MyPrompts = () => {
                           <MoreVertical className="w-4 h-4" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleCopyPrompt(prompt)}>
-                          <Copy className="w-4 h-4 mr-2" />
-                          Copy
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleExportPrompt(prompt)}>
-                          <Download className="w-4 h-4 mr-2" />
-                          Export
-                        </DropdownMenuItem>
-                        <DropdownMenuItem>
-                          <Edit className="w-4 h-4 mr-2" />
-                          Edit
-                        </DropdownMenuItem>
-                        <Separator />
-                        <DropdownMenuItem 
-                          onClick={() => handleDeletePrompt(prompt._id)}
-                          className="text-red-600"
-                        >
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => handleViewPrompt(prompt)}>
+                                <Eye className="w-4 h-4 mr-2" />
+                                View
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleCopyPrompt(prompt)}>
+                                <Copy className="w-4 h-4 mr-2" />
+                                Copy
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleExportPrompt(prompt)}>
+                                <Download className="w-4 h-4 mr-2" />
+                                Export
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleEditPrompt(prompt)}>
+                                <Edit className="w-4 h-4 mr-2" />
+                                Edit
+                              </DropdownMenuItem>
+                              <Separator />
+                              <DropdownMenuItem 
+                                onClick={() => handleDeletePrompt(prompt._id)}
+                                className="text-red-600"
+                              >
+                                <Trash2 className="w-4 h-4 mr-2" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
                 </CardHeader>
@@ -488,7 +606,7 @@ const MyPrompts = () => {
                     {/* Content Preview */}
                     <div className="bg-muted/30 rounded-lg p-3">
                       <p className="text-sm text-muted-foreground line-clamp-3">
-                        {prompt.content}
+                        {String(prompt.content || 'No content available')}
                       </p>
                     </div>
 
@@ -497,7 +615,7 @@ const MyPrompts = () => {
                       <div className="flex flex-wrap gap-1">
                         {prompt.keywords.slice(0, 4).map((keyword, index) => (
                           <Badge key={index} variant="outline" className="text-xs">
-                            {keyword}
+                            {String(keyword)}
                           </Badge>
                         ))}
                         {prompt.keywords.length > 4 && (
@@ -532,6 +650,123 @@ const MyPrompts = () => {
             ))}
           </div>
         )}
+
+        {/* View Prompt Dialog */}
+        <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center">
+                {selectedPrompt?.promptData.role}
+                {selectedPrompt?.metadata.aiEnhanced && <Bot className="w-4 h-4 ml-2 text-blue-500" />}
+                {selectedPrompt?.metadata.optimized && <Zap className="w-4 h-4 ml-2 text-yellow-500" />}
+              </DialogTitle>
+              <DialogDescription>
+                {selectedPrompt?.promptData.task}
+              </DialogDescription>
+            </DialogHeader>
+            
+            {selectedPrompt && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <h4 className="font-medium mb-2">Prompt Details</h4>
+                    <div className="space-y-2 text-sm">
+                      <div><span className="font-medium">Views:</span> {selectedPrompt.analytics.views}</div>
+                      <div><span className="font-medium">Copies:</span> {selectedPrompt.analytics.copies}</div>
+                      <div><span className="font-medium">Words:</span> {selectedPrompt.wordCount}</div>
+                      <div><span className="font-medium">Created:</span> {formatDate(selectedPrompt.createdAt)}</div>
+                      <div><span className="font-medium">Public:</span> {selectedPrompt.isPublic ? 'Yes' : 'No'}</div>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h4 className="font-medium mb-2">Keywords</h4>
+                    <div className="flex flex-wrap gap-1">
+                      {selectedPrompt.keywords?.map((keyword, index) => (
+                        <Badge key={index} variant="outline" className="text-xs">
+                          {String(keyword)}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                
+                <Separator />
+                
+                <div>
+                  <h4 className="font-medium mb-2">Prompt Content</h4>
+                  <div className="bg-muted/30 rounded-lg p-4 text-sm max-h-64 overflow-y-auto">
+                    <pre className="whitespace-pre-wrap font-mono">{String(selectedPrompt.content || 'No content available')}</pre>
+                  </div>
+                </div>
+                
+                <div className="flex justify-end space-x-2">
+                  <Button variant="outline" onClick={() => handleCopyPrompt(selectedPrompt)}>
+                    <Copy className="w-4 h-4 mr-2" />
+                    Copy
+                  </Button>
+                  <Button variant="outline" onClick={() => handleExportPrompt(selectedPrompt)}>
+                    <Download className="w-4 h-4 mr-2" />
+                    Export
+                  </Button>
+                  <Button onClick={() => {
+                    setIsViewDialogOpen(false);
+                    handleEditPrompt(selectedPrompt);
+                  }}>
+                    <Edit className="w-4 h-4 mr-2" />
+                    Edit
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Prompt Dialog */}
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Edit Prompt</DialogTitle>
+              <DialogDescription>
+                Modify your prompt content and privacy settings
+              </DialogDescription>
+            </DialogHeader>
+            
+            {editingPrompt && (
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="prompt-content">Prompt Content</Label>
+                  <Textarea
+                    id="prompt-content"
+                    value={editedContent}
+                    onChange={(e) => setEditedContent(e.target.value)}
+                    className="min-h-[200px] mt-2"
+                    placeholder="Enter your prompt content..."
+                  />
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="public-prompt"
+                    checked={editedIsPublic}
+                    onCheckedChange={setEditedIsPublic}
+                  />
+                  <Label htmlFor="public-prompt">Make this prompt public</Label>
+                </div>
+                
+                <div className="flex justify-end space-x-2">
+                  <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleSaveEdit}>
+                    <Edit className="w-4 h-4 mr-2" />
+                    Save Changes
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

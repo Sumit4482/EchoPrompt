@@ -10,6 +10,7 @@
     "build": "tsc",
     "build:mock": "tsc src/server-mock.ts --outDir dist --esModuleInterop --skipLibCheck",
     "start:mock": "node dist/server-mock.js",
+    "seed": "tsx src/scripts/seedDatabase.ts",
     "lint": "eslint src/**/*.ts",
     "test": "jest"
   },
