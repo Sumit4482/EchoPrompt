@@ -352,51 +352,6 @@ class ApiService {
     return this.handleResponse<any[]>(response);
   }
 
-  // AI Suggestions and Completions
-  async getSuggestions(field: string, partialText: string = ''): Promise<ApiResponse<{
-    field: string;
-    partialText: string;
-    suggestions: string[];
-  }>> {
-    const response = await fetch(`${API_BASE_URL}/prompts/suggestions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ field, partialText }),
-    });
-    return this.handleResponse(response);
-  }
-
-  async getCompletions(field: string, partialText: string): Promise<ApiResponse<{
-    field: string;
-    partialText: string;
-    completions: string[];
-  }>> {
-    const response = await fetch(`${API_BASE_URL}/prompts/complete`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ field, partialText }),
-    });
-    return this.handleResponse(response);
-  }
-
-  async getAutoPopulate(task: string): Promise<ApiResponse<{
-    task: string;
-    suggestions: {
-      role?: string;
-      tone?: string;
-      outputFormat?: string;
-      context?: string;
-      audience?: string;
-      industry?: string;
-    };
-  }>> {
-    const response = await fetch(`${API_BASE_URL}/prompts/auto-populate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ task }),
-    });
-    return this.handleResponse(response);
-  }
 
   // Health Check
   async healthCheck(): Promise<any> {

@@ -110,9 +110,6 @@ const PromptBuilder = ({ onPromptChange }: PromptBuilderProps) => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const [templateDialogMode, setTemplateDialogMode] = useState<'save' | 'load'>('save');
-  const [aiAutoPopulate, setAiAutoPopulate] = useState(true);
-  const [isAutoPopulating, setIsAutoPopulating] = useState(false);
-  const [autoPopulatedFields, setAutoPopulatedFields] = useState<Set<string>>(new Set());
 
   // All suggestion arrays moved outside component to prevent recreation
 
@@ -143,12 +140,6 @@ const PromptBuilder = ({ onPromptChange }: PromptBuilderProps) => {
 
   const updatePromptData = useCallback((field: keyof PromptData, value: string) => {
     setPromptData(prev => ({ ...prev, [field]: value }));
-    // Clear auto-populate indicator when user manually edits a field
-    setAutoPopulatedFields(prev => {
-      const newSet = new Set(prev);
-      newSet.delete(field);
-      return newSet;
-    });
   }, []);
 
   // Generate prompt text whenever promptData changes
@@ -156,132 +147,7 @@ const PromptBuilder = ({ onPromptChange }: PromptBuilderProps) => {
     generatePromptText(promptData);
   }, [promptData]);
 
-  // Auto-populate fields based on task when AI Auto Complete is enabled
-  const autoPopulateFields = useCallback(async (task: string) => {
-    console.log('🔮 autoPopulateFields called with:', { task, aiAutoPopulate, taskLength: task.length });
-    if (!aiAutoPopulate || !task || task.length < 10) {
-      console.log('🔮 Skipping auto-populate due to conditions');
-      return;
-    }
-    
-    setIsAutoPopulating(true);
-    try {
-      console.log('🔮 Calling auto-populate API for task:', task);
-      // Call the new auto-populate API endpoint
-      const response = await apiService.getAutoPopulate(task);
-      console.log('🔮 Auto-populate API response:', response);
-      
-      if (response.success && response.data?.suggestions) {
-        const suggestions = response.data.suggestions;
-        console.log('🔮 Auto-populate suggestions received:', suggestions);
-        
-        // Use functional state update to get current values
-        setPromptData(prev => {
-          console.log('🔮 Current form state:', prev);
-          const updates: Partial<PromptData> = {};
-          
-          // Only update empty fields to avoid overwriting user input
-          if (suggestions.role && !prev.role.trim()) {
-            console.log('🔮 Adding role:', suggestions.role);
-            updates.role = suggestions.role;
-          } else {
-            console.log('🔮 Skipping role - already has value:', prev.role);
-          }
-          
-          if (suggestions.tone && !prev.tone.trim()) {
-            console.log('🔮 Adding tone:', suggestions.tone);
-            updates.tone = suggestions.tone;
-          } else {
-            console.log('🔮 Skipping tone - already has value:', prev.tone);
-          }
-          
-          if (suggestions.outputFormat && !prev.outputFormat.trim()) {
-            console.log('🔮 Adding outputFormat:', suggestions.outputFormat);
-            updates.outputFormat = suggestions.outputFormat;
-          } else {
-            console.log('🔮 Skipping outputFormat - already has value:', prev.outputFormat);
-          }
-          
-          if (suggestions.context && !prev.context.trim()) {
-            console.log('🔮 Adding context:', suggestions.context);
-            updates.context = suggestions.context;
-          } else {
-            console.log('🔮 Skipping context - already has value:', prev.context);
-          }
-          
-          if (suggestions.audience && !prev.audience.trim()) {
-            console.log('🔮 Adding audience:', suggestions.audience);
-            updates.audience = suggestions.audience;
-          } else {
-            console.log('🔮 Skipping audience - already has value:', prev.audience);
-          }
-          
-          if (suggestions.industry && !prev.industry.trim()) {
-            console.log('🔮 Adding industry:', suggestions.industry);
-            updates.industry = suggestions.industry;
-          } else {
-            console.log('🔮 Skipping industry - already has value:', prev.industry);
-          }
-          
-          console.log('🔮 Final updates to apply:', updates);
-          
-          // Apply updates if any fields were suggested
-          if (Object.keys(updates).length > 0) {
-            setAutoPopulatedFields(new Set(Object.keys(updates)));
-            toast({
-              title: "🤖 AI Auto Complete",
-              description: `Populated ${Object.keys(updates).length} field(s) based on your task`,
-              duration: 3000,
-            });
-            console.log('🔮 Returning updated state:', { ...prev, ...updates });
-            return { ...prev, ...updates };
-          } else {
-            console.log('🔮 No updates to apply - all fields already filled or no suggestions');
-          }
-          
-          return prev;
-        });
-      }
-    } catch (error) {
-      console.error('🔮 Auto-populate error:', error);
-      console.error('🔮 Error details:', {
-        name: error instanceof Error ? error.name : 'Unknown',
-        message: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : 'No stack trace'
-      });
-      // Show error for debugging
-      toast({
-        title: "❌ Auto-populate Error",
-        description: error instanceof Error ? error.message : "Unknown error occurred",
-        variant: "destructive",
-        duration: 5000,
-      });
-    } finally {
-      setIsAutoPopulating(false);
-    }
-  }, [aiAutoPopulate, toast]);
 
-  // Trigger auto-populate when task changes
-  useEffect(() => {
-    console.log('🔮 Auto-populate effect triggered:', { 
-      aiAutoPopulate, 
-      taskLength: promptData.task.length, 
-      task: promptData.task 
-    });
-    
-    if (aiAutoPopulate && promptData.task && promptData.task.length >= 10) {
-      console.log('🔮 Setting auto-populate timeout...');
-      const timeoutId = setTimeout(() => {
-        console.log('🔮 Executing auto-populate for task:', promptData.task);
-        autoPopulateFields(promptData.task);
-      }, 2000); // Wait 2 seconds after user stops typing
-      
-      return () => {
-        console.log('🔮 Clearing auto-populate timeout');
-        clearTimeout(timeoutId);
-      };
-    }
-  }, [promptData.task, autoPopulateFields, aiAutoPopulate]);
 
   // Create stable onChange handlers for each field
   const handleRoleChange = useCallback((value: string) => updatePromptData("role", value), [updatePromptData]);
@@ -386,45 +252,6 @@ const PromptBuilder = ({ onPromptChange }: PromptBuilderProps) => {
     }
   };
 
-  const handleGenerateLocal = async () => {
-    if (!promptData.task) {
-      toast({
-        title: "Error",
-        description: "Please enter a task description before generating.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsGenerating(true);
-    try {
-      const response = await apiService.generatePromptLocal(promptData, true);
-      if (response.success && response.data) {
-        onPromptChange(response.data.prompt.content);
-        toast({
-          title: "📝 Local Success!",
-          description: `Generated prompt using local templates (${response.data.metadata.wordCount} words)`,
-        });
-      } else {
-        throw new Error(response.error || "Failed to generate local prompt");
-      }
-    } catch (error) {
-      console.error("Error generating local prompt:", error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to generate local prompt.",
-        variant: "destructive",
-      });
-      // Fallback to client-side generation
-      generatePromptText(promptData);
-      toast({
-        title: "📝 Fallback Success!",
-        description: "Generated prompt using client-side templates",
-      });
-    } finally {
-      setIsGenerating(false);
-    }
-  };
 
   const handleSaveTemplate = () => {
     if (!promptData.task) {
@@ -460,39 +287,6 @@ const PromptBuilder = ({ onPromptChange }: PromptBuilderProps) => {
                 <Zap className="w-5 h-5 mr-2 text-primary" />
                 Essential Fields
               </CardTitle>
-              <div className="flex items-center space-x-3">
-                <div className="flex items-center space-x-2">
-                  <Label htmlFor="ai-auto-populate" className="text-sm font-medium cursor-pointer flex items-center">
-                    <Wand2 className="w-4 h-4 mr-1 text-primary" />
-                    AI Auto Complete
-                  </Label>
-                  <Switch
-                    id="ai-auto-populate"
-                    checked={aiAutoPopulate}
-                    onCheckedChange={setAiAutoPopulate}
-                    className="data-[state=checked]:bg-primary"
-                  />
-                </div>
-                  {isAutoPopulating && (
-                  <div className="flex items-center text-primary">
-                    <Sparkles className="w-4 h-4 mr-1 animate-pulse" />
-                    <span className="text-xs font-medium">Populating...</span>
-                  </div>
-                )}
-                {/* Debug button - remove later */}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    console.log('🔮 Manual auto-populate test');
-                    if (promptData.task) {
-                      autoPopulateFields(promptData.task);
-                    }
-                  }}
-                  className="h-6 text-xs"
-                >
-                  Test Auto-Fill
-                </Button>
                 <Button
                   variant="outline"
                   size="sm"
@@ -507,14 +301,12 @@ const PromptBuilder = ({ onPromptChange }: PromptBuilderProps) => {
                       audience: "",
                       industry: ""
                     }));
-                    setAutoPopulatedFields(new Set());
                   }}
                   className="h-6 text-xs"
                 >
-                  Clear Fields
+                  Reset
                 </Button>
               </div>
-            </div>
           </CardHeader>
           <CardContent className="space-y-6">
             {/* Task */}
@@ -531,7 +323,6 @@ const PromptBuilder = ({ onPromptChange }: PromptBuilderProps) => {
                 placeholder="Describe the specific task you want the AI to perform..."
                 suggestions={taskSuggestions}
                 multiline
-                fieldName="task"
               />
             </div>
 
@@ -542,19 +333,12 @@ const PromptBuilder = ({ onPromptChange }: PromptBuilderProps) => {
                 <Badge variant="outline" className="ml-2 text-xs border-primary/30 text-primary/80">
                   Who is the AI?
                 </Badge>
-                {autoPopulatedFields.has('role') && (
-                  <Badge variant="secondary" className="ml-2 text-xs bg-green-100 text-green-700 border-green-300">
-                    <Wand2 className="w-3 h-3 mr-1" />
-                    AI
-                  </Badge>
-                )}
               </Label>
               <SmartInput
                 value={promptData.role}
                 onChange={handleRoleChange}
                 placeholder="e.g., Software Engineer, Marketing Expert..."
                 suggestions={roleOptions}
-                fieldName="role"
               />
             </div>
 
@@ -565,19 +349,12 @@ const PromptBuilder = ({ onPromptChange }: PromptBuilderProps) => {
                 <Badge variant="outline" className="ml-2 text-xs border-primary/30 text-primary/80">
                   Background info
                 </Badge>
-                {autoPopulatedFields.has('context') && (
-                  <Badge variant="secondary" className="ml-2 text-xs bg-green-100 text-green-700 border-green-300">
-                    <Wand2 className="w-3 h-3 mr-1" />
-                    AI
-                  </Badge>
-                )}
               </Label>
               <SmartInput
                 value={promptData.context}
                 onChange={handleContextChange}
                 placeholder="Provide any background information or constraints..."
                 multiline
-                fieldName="context"
               />
             </div>
 
@@ -588,19 +365,12 @@ const PromptBuilder = ({ onPromptChange }: PromptBuilderProps) => {
                 <Badge variant="outline" className="ml-2 text-xs border-primary/30 text-primary/80">
                   How should it sound?
                 </Badge>
-                {autoPopulatedFields.has('tone') && (
-                  <Badge variant="secondary" className="ml-2 text-xs bg-green-100 text-green-700 border-green-300">
-                    <Wand2 className="w-3 h-3 mr-1" />
-                    AI
-                  </Badge>
-                )}
               </Label>
               <SmartInput
                 value={promptData.tone}
                 onChange={handleToneChange}
                 placeholder="Select or type a tone..."
                 suggestions={toneOptions}
-                fieldName="tone"
               />
             </div>
 
@@ -611,19 +381,12 @@ const PromptBuilder = ({ onPromptChange }: PromptBuilderProps) => {
                 <Badge variant="outline" className="ml-2 text-xs border-primary/30 text-primary/80">
                   Response structure
                 </Badge>
-                {autoPopulatedFields.has('outputFormat') && (
-                  <Badge variant="secondary" className="ml-2 text-xs bg-green-100 text-green-700 border-green-300">
-                    <Wand2 className="w-3 h-3 mr-1" />
-                    AI
-                  </Badge>
-                )}
               </Label>
               <SmartInput
                 value={promptData.outputFormat}
                 onChange={handleOutputFormatChange}
                 placeholder="Select or type a format..."
                 suggestions={outputFormatOptions}
-                fieldName="outputFormat"
               />
             </div>
           </CardContent>
@@ -833,55 +596,35 @@ const PromptBuilder = ({ onPromptChange }: PromptBuilderProps) => {
                 Generate Your Prompt
               </h3>
             </div>
-            <p className="text-sm text-muted-foreground">Choose your preferred generation method for optimal results</p>
+            <p className="text-sm text-muted-foreground mb-6">AI-powered prompt generation with live preview</p>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="flex justify-center">
             {/* AI Generation Button */}
-            <div className="group relative">
-              <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl blur opacity-25 group-hover:opacity-40 transition-opacity duration-300"></div>
-              <Button 
-                className="relative w-full h-20 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 transition-all duration-300 text-white font-semibold text-lg shadow-xl hover:shadow-2xl hover:scale-[1.02] disabled:hover:scale-100 flex flex-col py-4 border-0"
-                disabled={!promptData.task || isGenerating}
-                onClick={handleGenerateWithAI}
-              >
-                <div className="flex items-center mb-2">
-                  <Bot className="w-7 h-7 mr-3" />
-                  {isGenerating ? "Generating..." : "AI Generation"}
-                </div>
-                <span className="text-sm text-blue-100 font-medium">Powered by Gemini AI</span>
-                <div className="absolute bottom-2 right-3 text-xs text-blue-200/70">
-                  🚀 Enhanced
-                </div>
-              </Button>
-            </div>
-
-            {/* Local Generation Button */}
-            <div className="group relative">
-              <div className="absolute inset-0 bg-primary/20 rounded-xl blur opacity-25 group-hover:opacity-40 transition-opacity duration-300"></div>
-              <Button 
-                variant="outline"
-                className="relative w-full h-20 border-2 border-primary/40 hover:border-primary/60 hover:bg-primary/10 transition-all duration-300 font-semibold text-lg shadow-lg hover:shadow-xl hover:scale-[1.02] disabled:hover:scale-100 flex flex-col py-4 bg-gradient-to-br from-background to-background/80"
-                disabled={!promptData.task || isGenerating}
-                onClick={handleGenerateLocal}
-              >
-                <div className="flex items-center mb-2">
-                  <FileText className="w-7 h-7 mr-3" />
-                  {isGenerating ? "Generating..." : "Local Templates"}
-                </div>
-                <span className="text-sm text-muted-foreground font-medium">Fast & Reliable</span>
-                <div className="absolute bottom-2 right-3 text-xs text-muted-foreground/70">
-                  ⚡ Instant
-                </div>
-              </Button>
-            </div>
+            <Button 
+              className="bg-gradient-to-r from-emerald-500 to-blue-600 hover:from-emerald-600 hover:to-blue-700 text-white font-semibold px-6 py-3 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 disabled:hover:scale-100"
+              disabled={!promptData.task || isGenerating}
+              onClick={handleGenerateWithAI}
+            >
+              {isGenerating ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  Generate Prompt
+                </>
+              )}
+            </Button>
           </div>
           
           <div className="text-center">
             <p className="text-xs text-muted-foreground">
-              💡 <strong>AI Generation:</strong> Advanced, context-aware prompts with optimization
+              💡 <strong>Live Preview:</strong> See your prompt update as you type
               <br />
-              📝 <strong>Local Templates:</strong> Quick generation using predefined patterns
+              🤖 <strong>AI Enhancement:</strong> Click Generate Prompt for optimized results
             </p>
           </div>
         </div>

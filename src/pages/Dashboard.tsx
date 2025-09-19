@@ -56,7 +56,7 @@ const Dashboard = () => {
       </div>
       
       {/* Main Content */}
-      <div className="min-h-screen flex">
+      <div className="flex">
         {/* Left Panel - Prompt Builder */}
         <div className={`
           w-full md:w-1/2 border-r border-border/30 bg-gradient-to-br from-background/50 to-background
@@ -67,10 +67,10 @@ const Dashboard = () => {
 
         {/* Right Panel - Live Preview */}
         <div className={`
-          w-full md:w-1/2 bg-gradient-to-bl from-background/50 to-background
+          w-full md:w-1/2 bg-gradient-to-bl from-background/50 to-background h-screen overflow-hidden
           ${activePanel === "builder" ? "hidden md:block" : "block"}
         `}>
-          <PromptPreview prompt={currentPrompt} />
+          <PromptPreview prompt={currentPrompt} onPromptChange={handlePromptChange} />
         </div>
       </div>
     </div>

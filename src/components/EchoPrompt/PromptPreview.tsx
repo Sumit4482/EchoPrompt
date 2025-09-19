@@ -3,19 +3,45 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Copy, Download, FileText, Code, Table, Eye } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Copy, Download, FileText, Code, Table, Eye, Edit3, Check, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface PromptPreviewProps {
   prompt: string;
+  onPromptChange?: (newPrompt: string) => void;
 }
 
-const PromptPreview = ({ prompt }: PromptPreviewProps) => {
+const PromptPreview = ({ prompt, onPromptChange }: PromptPreviewProps) => {
   const [activeTab, setActiveTab] = useState("plain");
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedPrompt, setEditedPrompt] = useState(prompt);
   const { toast } = useToast();
 
+  const handleEdit = () => {
+    setEditedPrompt(prompt);
+    setIsEditing(true);
+  };
+
+  const handleSaveEdit = () => {
+    if (onPromptChange) {
+      onPromptChange(editedPrompt);
+    }
+    setIsEditing(false);
+    toast({
+      title: "Saved!",
+      description: "Prompt updated successfully",
+    });
+  };
+
+  const handleCancelEdit = () => {
+    setEditedPrompt(prompt);
+    setIsEditing(false);
+  };
+
   const handleCopy = () => {
-    navigator.clipboard.writeText(prompt);
+    const textToCopy = isEditing ? editedPrompt : prompt;
+    navigator.clipboard.writeText(textToCopy);
     toast({
       title: "Copied!",
       description: "Prompt copied to clipboard",
@@ -84,17 +110,58 @@ ${text}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-3">
             <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-600 shadow-lg">
-              <Eye className="w-6 h-6 text-white" />
+              {isEditing ? <Edit3 className="w-6 h-6 text-white" /> : <Eye className="w-6 h-6 text-white" />}
             </div>
             <div>
-              <h2 className="text-xl font-bold font-display bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">Live Preview</h2>
-              <p className="text-sm text-muted-foreground font-medium">Real-time prompt generation</p>
+              <h2 className="text-xl font-bold font-display bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
+                {isEditing ? "Edit Prompt" : "Live Preview"}
+              </h2>
+              <p className="text-sm text-muted-foreground font-medium">
+                {isEditing ? "Modify your prompt" : "Real-time prompt generation"}
+              </p>
             </div>
           </div>
-          <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 border-emerald-200">
-            <Eye className="w-3 h-3 mr-1" />
-            Live
-          </Badge>
+          <div className="flex items-center space-x-2">
+            {isEditing ? (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSaveEdit}
+                  className="text-green-600 border-green-200 hover:bg-green-50"
+                >
+                  <Check className="w-4 h-4 mr-1" />
+                  Save
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCancelEdit}
+                  className="text-red-600 border-red-200 hover:bg-red-50"
+                >
+                  <X className="w-4 h-4 mr-1" />
+                  Cancel
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleEdit}
+                  disabled={!prompt}
+                  className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                >
+                  <Edit3 className="w-4 h-4 mr-1" />
+                  Edit
+                </Button>
+                <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 border-emerald-200">
+                  <Eye className="w-3 h-3 mr-1" />
+                  Live
+                </Badge>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Format Tabs */}
@@ -124,8 +191,15 @@ ${text}
       <div className="flex-1 overflow-hidden">
         <Card className="h-full m-6 mt-0 glass border-border/50">
           <CardContent className="p-0 h-full">
-            <div className="h-full overflow-y-auto p-6">
-              {prompt ? (
+            <div className="h-full max-h-[calc(100vh-300px)] overflow-y-auto p-6">
+              {isEditing ? (
+                <Textarea
+                  value={editedPrompt}
+                  onChange={(e) => setEditedPrompt(e.target.value)}
+                  className="w-full h-full max-h-[calc(100vh-350px)] resize-none border-0 bg-transparent text-sm font-mono leading-relaxed focus:ring-0 focus:outline-none"
+                  placeholder="Edit your prompt here..."
+                />
+              ) : prompt ? (
                 <pre className="whitespace-pre-wrap text-sm font-mono leading-relaxed text-foreground">
                   {getFormattedContent()}
                 </pre>
