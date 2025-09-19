@@ -61,13 +61,6 @@ const Header = () => {
                     <p className="text-xs text-muted-foreground">Discover public templates</p>
                   </div>
                 </DropdownMenuItem>
-                <DropdownMenuItem className="cursor-pointer">
-                  <FileText className="w-4 h-4 mr-3" />
-                  <div>
-                    <p className="font-medium">Create Template</p>
-                    <p className="text-xs text-muted-foreground">From current prompt</p>
-                  </div>
-                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
 
