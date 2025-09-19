@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:3001/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -456,7 +456,7 @@ class ApiService {
 
   // Health Check
   async healthCheck(): Promise<any> {
-    const response = await fetch('http://localhost:3001/health');
+    const response = await fetch(`${API_BASE_URL.replace('/api', '')}/health`);
     return response.json();
   }
 }
