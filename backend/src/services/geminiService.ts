@@ -11,8 +11,8 @@ export class GeminiService {
       const apiKey = customApiKey || process.env.GEMINI_API_KEY || 'AIzaSyB7O_pCoXdzsMAytdUssXNuK0ApF-3PIXg';
       
       // Create a new instance with the custom API key if provided
-      const genAI = customApiKey ? new GoogleGenerativeAI(apiKey) : this.model;
-      const model = customApiKey ? genAI.getGenerativeModel({ model: "gemini-1.5-flash" }) : this.model;
+      const genAIInstance = customApiKey ? new GoogleGenerativeAI(apiKey) : genAI;
+      const model = customApiKey ? genAIInstance.getGenerativeModel({ model: "gemini-1.5-flash" }) : this.model;
       
       const systemPrompt = this.buildSystemPrompt(promptData, optimize);
       const result = await model.generateContent(systemPrompt);

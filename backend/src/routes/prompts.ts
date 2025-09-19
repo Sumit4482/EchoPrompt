@@ -2,6 +2,7 @@ import express from 'express';
 import { body, query, validationResult } from 'express-validator';
 import { Prompt } from '../models/Prompt';
 import { Template } from '../models/Template';
+import Analytics from '../models/Analytics';
 import { authenticate, optionalAuth } from '../middleware/auth';
 import { AuthenticatedRequest, ApiResponse, PromptQuery, ExportFormat } from '../types';
 import { PromptGenerator } from '../utils/promptGenerator';
@@ -50,12 +51,16 @@ router.post('/generate', optionalAuth, [
 
     // Generate the prompt content using Gemini AI
     let content: string;
+    let aiEnhanced = false;
+    const startTime = Date.now();
+    
     try {
       console.log('🤖 Attempting Gemini AI generation...');
       if (geminiApiKey) {
         console.log('🔑 Using user-provided API key');
       }
       content = await geminiService.generatePrompt(promptData, optimize, geminiApiKey);
+      aiEnhanced = true;
       console.log('✅ Gemini AI generation successful');
       console.log('📝 Generated content length:', content.length);
     } catch (error) {
@@ -67,6 +72,8 @@ router.post('/generate', optionalAuth, [
       }
       console.log('🔄 Using local fallback generation');
     }
+    
+    const generationTime = Date.now() - startTime;
 
     // Calculate word and character counts
     const wordCount = content.trim().split(/\s+/).filter(word => word.length > 0).length;
@@ -89,11 +96,33 @@ router.post('/generate', optionalAuth, [
         version: '1.0.0',
         generatedAt: new Date(),
         optimized: optimize,
-        aiEnhanced: false // TODO: Implement AI enhancement
+        aiEnhanced: aiEnhanced
       }
     });
 
     await prompt.save();
+
+    // Track AI generation analytics
+    try {
+      await Analytics.logEvent({
+        userId: req.user?._id || undefined,
+        eventType: aiEnhanced ? 'ai_generation_success' : 'ai_generation_fallback',
+        metadata: {
+          promptId: prompt._id,
+          aiProvider: aiEnhanced ? 'gemini' : 'fallback',
+          generationTime: generationTime,
+          wordCount: wordCount,
+          characterCount: characterCount,
+          optimized: optimize,
+          sessionId: (req as any).sessionID || undefined
+        },
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent')
+      });
+    } catch (analyticsError) {
+      console.error('Failed to log AI generation analytics:', analyticsError);
+      // Don't fail the request if analytics logging fails
+    }
 
     // Update user's prompt count if authenticated
     if (req.user) {

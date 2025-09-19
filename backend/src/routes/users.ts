@@ -1,8 +1,8 @@
 import express from 'express';
 import { query, validationResult } from 'express-validator';
 import User from '../models/User';
-import Template from '../models/Template';
-import Prompt from '../models/Prompt';
+import { Template } from '../models/Template';
+import { Prompt } from '../models/Prompt';
 import { authenticate } from '../middleware/auth';
 import { AuthenticatedRequest, ApiResponse } from '../types';
 

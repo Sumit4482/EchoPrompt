@@ -15,7 +15,9 @@ const analyticsSchema = new Schema<IAnalytics>({
       'template_created',
       'template_used',
       'prompt_copied',
-      'prompt_exported'
+      'prompt_exported',
+      'ai_generation_success',
+      'ai_generation_fallback'
     ],
   },
   metadata: {
@@ -39,6 +41,26 @@ const analyticsSchema = new Schema<IAnalytics>({
     },
     sessionId: {
       type: String,
+      default: null,
+    },
+    aiProvider: {
+      type: String,
+      default: null,
+    },
+    generationTime: {
+      type: Number,
+      default: null,
+    },
+    wordCount: {
+      type: Number,
+      default: null,
+    },
+    characterCount: {
+      type: Number,
+      default: null,
+    },
+    optimized: {
+      type: Boolean,
       default: null,
     },
   },
@@ -121,6 +143,55 @@ analyticsSchema.statics.getEventStats = function(startDate?: Date, endDate?: Dat
   ]);
 };
 
-const Analytics: Model<IAnalytics> = mongoose.model<IAnalytics>('Analytics', analyticsSchema);
+analyticsSchema.statics.getAIGenerationStats = function(startDate?: Date, endDate?: Date) {
+  const dateFilter: any = {};
+  if (startDate || endDate) {
+    dateFilter.createdAt = {};
+    if (startDate) dateFilter.createdAt.$gte = startDate;
+    if (endDate) dateFilter.createdAt.$lte = endDate;
+  }
+
+  return this.aggregate([
+    { 
+      $match: { 
+        ...dateFilter,
+        eventType: { $in: ['ai_generation_success', 'ai_generation_fallback'] }
+      } 
+    },
+    {
+      $group: {
+        _id: '$eventType',
+        count: { $sum: 1 },
+        avgGenerationTime: { $avg: '$metadata.generationTime' },
+        avgWordCount: { $avg: '$metadata.wordCount' },
+        avgCharacterCount: { $avg: '$metadata.characterCount' },
+        uniqueUsers: { $addToSet: '$userId' }
+      }
+    },
+    {
+      $project: {
+        eventType: '$_id',
+        count: 1,
+        avgGenerationTime: { $round: ['$avgGenerationTime', 2] },
+        avgWordCount: { $round: ['$avgWordCount', 0] },
+        avgCharacterCount: { $round: ['$avgCharacterCount', 0] },
+        uniqueUsers: { $size: '$uniqueUsers' },
+        _id: 0
+      }
+    },
+    { $sort: { count: -1 } }
+  ]);
+};
+
+// Define the static methods interface
+interface IAnalyticsModel extends Model<IAnalytics> {
+  logEvent(eventData: Partial<IAnalytics>): Promise<IAnalytics>;
+  getEventsByType(eventType: string, limit?: number): Promise<IAnalytics[]>;
+  getUserEvents(userId: string, limit?: number): Promise<IAnalytics[]>;
+  getEventStats(startDate?: Date, endDate?: Date): Promise<any[]>;
+  getAIGenerationStats(startDate?: Date, endDate?: Date): Promise<any[]>;
+}
+
+const Analytics: IAnalyticsModel = mongoose.model<IAnalytics, IAnalyticsModel>('Analytics', analyticsSchema);
 
 export default Analytics;

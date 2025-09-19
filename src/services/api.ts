@@ -415,6 +415,20 @@ class ApiService {
     return this.handleResponse(response);
   }
 
+  async getAIGenerationAnalytics(): Promise<ApiResponse<{
+    successRate: number;
+    totalAttempts: number;
+    successCount: number;
+    fallbackCount: number;
+    stats: any[];
+    recentEvents: any[];
+  }>> {
+    const response = await fetch(`${API_BASE_URL}/analytics/ai-generation`, {
+      headers: this.getAuthHeaders(),
+    });
+    return this.handleResponse(response);
+  }
+
   // User Management
   async getUserStats(): Promise<ApiResponse<any>> {
     const response = await fetch(`${API_BASE_URL}/users/stats`, {

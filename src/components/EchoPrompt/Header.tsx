@@ -12,10 +12,14 @@ import {
 import { useNavigate } from "react-router-dom";
 import SettingsDialog from "./SettingsDialog";
 import ProfileMenu from "./ProfileMenu";
+import AIStatusIndicator from "./AIStatusIndicator";
+import LoadingBar from "./LoadingBar";
+import { useAI } from "@/contexts/AIContext";
 
 const Header = () => {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const navigate = useNavigate();
+  const { isGenerating, lastGenerationStatus } = useAI();
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 h-16 glass border-b border-border/30 backdrop-blur-xl">
@@ -78,6 +82,13 @@ const Header = () => {
 
         {/* Right Section */}
         <div className="flex items-center space-x-3">
+          {/* AI Status Indicator */}
+          <AIStatusIndicator 
+            className="hidden sm:flex" 
+            isGenerating={isGenerating}
+            lastGenerationStatus={lastGenerationStatus}
+          />
+          
           {/* Mobile Navigation */}
           <div className="md:hidden">
             <DropdownMenu>
@@ -121,6 +132,9 @@ const Header = () => {
         isOpen={settingsOpen} 
         onClose={() => setSettingsOpen(false)} 
       />
+      
+      {/* Loading Bar */}
+      <LoadingBar isVisible={isGenerating} />
     </header>
   );
 };

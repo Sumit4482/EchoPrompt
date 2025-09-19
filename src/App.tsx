@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { AIProvider } from "@/contexts/AIContext";
 import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
 import MyPrompts from "./pages/MyPrompts";
@@ -21,21 +22,23 @@ if (typeof window !== 'undefined') {
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/my-prompts" element={<MyPrompts />} />
-            <Route path="/my-templates" element={<MyTemplates />} />
-            <Route path="/library" element={<Library />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
+      <AIProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/my-prompts" element={<MyPrompts />} />
+              <Route path="/my-templates" element={<MyTemplates />} />
+              <Route path="/library" element={<Library />} />
+              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </AIProvider>
     </AuthProvider>
   </QueryClientProvider>
 );

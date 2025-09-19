@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiService, PromptData } from "@/services/api";
 import SmartInput from "./SmartInput";
 import TemplateDialog from "./TemplateDialog";
+import { useAI } from "@/contexts/AIContext";
 
 // Remove local interface since we're importing from API service
 
@@ -90,6 +91,7 @@ interface PromptBuilderProps {
 
 const PromptBuilder = ({ onPromptChange }: PromptBuilderProps) => {
   const { toast } = useToast();
+  const { startGeneration, completeGeneration } = useAI();
   const [promptData, setPromptData] = useState<PromptData>({
     role: "",
     task: "",
@@ -229,21 +231,29 @@ const PromptBuilder = ({ onPromptChange }: PromptBuilderProps) => {
       return;
     }
 
+    startGeneration();
     setIsGenerating(true);
+    
     try {
       const response = await apiService.generatePrompt(promptData, true);
       if (response.success && response.data) {
         onPromptChange(response.data.prompt.content);
         const aiMessage = response.message?.includes('🤖 with Gemini AI') ? 'with Gemini AI' : 'with AI enhancement';
+        const isAISuccess = response.data.prompt.metadata?.aiEnhanced || false;
+        
+        completeGeneration(isAISuccess);
+        
         toast({
-          title: "🤖 AI Success!",
+          title: isAISuccess ? "🤖 AI Success!" : "⚠️ Fallback Mode",
           description: `Generated optimized prompt ${aiMessage} (${response.data.metadata.wordCount} words)`,
+          variant: isAISuccess ? "default" : "destructive",
         });
       } else {
         throw new Error(response.error || "Failed to generate prompt with AI");
       }
     } catch (error) {
       console.error("Error generating prompt with AI:", error);
+      completeGeneration(false);
       toast({
         title: "AI Generation Failed",
         description: error instanceof Error ? error.message : "Failed to generate with AI. Try local generation instead.",

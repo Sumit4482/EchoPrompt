@@ -1,8 +1,9 @@
 import express from 'express';
 import { query, validationResult } from 'express-validator';
-import Template from '../models/Template';
-import Prompt from '../models/Prompt';
+import { Template } from '../models/Template';
+import { Prompt } from '../models/Prompt';
 import User from '../models/User';
+import Analytics from '../models/Analytics';
 import { authenticate, optionalAuth } from '../middleware/auth';
 import { AuthenticatedRequest, ApiResponse } from '../types';
 
@@ -316,6 +317,62 @@ router.get('/user-insights', authenticate, [
 
   } catch (error) {
     console.error('Get user insights error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Server error'
+    } as ApiResponse);
+  }
+});
+
+// @route   GET /api/analytics/ai-generation
+// @desc    Get AI generation statistics and success rates
+// @access  Public
+router.get('/ai-generation', async (req, res) => {
+  try {
+    // Get AI generation stats for the last 30 days
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const aiStats = await Analytics.getAIGenerationStats(thirtyDaysAgo);
+    
+    // Calculate success rate
+    const successCount = aiStats.find(stat => stat.eventType === 'ai_generation_success')?.count || 0;
+    const fallbackCount = aiStats.find(stat => stat.eventType === 'ai_generation_fallback')?.count || 0;
+    const totalAttempts = successCount + fallbackCount;
+    const successRate = totalAttempts > 0 ? (successCount / totalAttempts) * 100 : 0;
+
+    // Get recent AI generation events (last 10)
+    const recentEvents = await Analytics.find({
+      eventType: { $in: ['ai_generation_success', 'ai_generation_fallback'] }
+    })
+    .sort({ createdAt: -1 })
+    .limit(10)
+    .populate('userId', 'username')
+    .select('eventType metadata createdAt userId');
+
+    res.json({
+      success: true,
+      data: {
+        successRate: Math.round(successRate * 100) / 100,
+        totalAttempts,
+        successCount,
+        fallbackCount,
+        stats: aiStats,
+        recentEvents: recentEvents.map(event => ({
+          eventType: event.eventType,
+          aiProvider: event.metadata.aiProvider,
+          generationTime: event.metadata.generationTime,
+          wordCount: event.metadata.wordCount,
+          optimized: event.metadata.optimized,
+          createdAt: event.createdAt,
+          user: event.userId ? {
+            username: (event.userId as any).username
+          } : null
+        }))
+      }
+    } as ApiResponse);
+  } catch (error) {
+    console.error('Error fetching AI generation analytics:', error);
     res.status(500).json({
       success: false,
       error: 'Server error'
