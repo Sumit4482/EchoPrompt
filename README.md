@@ -262,6 +262,6 @@ If you have any questions or need help:
 
 ---
 
-**Made with ❤️ by the EchoPrompt Team**
+**Made with ❤️ by the Sumit4482 and Cursor AI**
 
 *Empowering everyone to create better AI prompts*
