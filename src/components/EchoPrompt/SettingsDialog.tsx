@@ -14,7 +14,7 @@ import { Slider } from "@/components/ui/slider";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { Settings, Palette, Zap, Database, Globe, Shield, Save, Moon } from "lucide-react";
+import { Settings, Palette, Zap, Database, Globe, Shield, Save, Moon, Keyboard } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface SettingsDialogProps {
@@ -434,6 +434,68 @@ const SettingsDialog = ({ isOpen, onClose }: SettingsDialogProps) => {
                   checked={settings.privateMode}
                   onCheckedChange={(checked) => updateSetting('privateMode', checked)}
                 />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Keyboard Shortcuts */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center text-lg">
+                <Keyboard className="w-5 h-5 mr-2" />
+                Keyboard Shortcuts
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-3">
+                  <h4 className="font-medium text-sm text-muted-foreground">Prompt Actions</h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span>Generate Prompt</span>
+                      <Badge variant="outline" className="text-xs">Ctrl/Cmd + Enter</Badge>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Save Prompt</span>
+                      <Badge variant="outline" className="text-xs">Ctrl/Cmd + S</Badge>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Save Template</span>
+                      <Badge variant="outline" className="text-xs">Ctrl/Cmd + T</Badge>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Load Template</span>
+                      <Badge variant="outline" className="text-xs">Ctrl/Cmd + L</Badge>
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <h4 className="font-medium text-sm text-muted-foreground">Navigation</h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span>Focus Task Field</span>
+                      <Badge variant="outline" className="text-xs">F</Badge>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Toggle Advanced</span>
+                      <Badge variant="outline" className="text-xs">Ctrl/Cmd + A</Badge>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Close Dialogs</span>
+                      <Badge variant="outline" className="text-xs">Esc</Badge>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Navigate Suggestions</span>
+                      <Badge variant="outline" className="text-xs">↑↓ Arrow Keys</Badge>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="pt-2 border-t border-border/30">
+                <p className="text-xs text-muted-foreground">
+                  💡 <strong>Tip:</strong> Keyboard shortcuts work when you're not typing in input fields. 
+                  They help you work faster and more efficiently!
+                </p>
               </div>
             </CardContent>
           </Card>

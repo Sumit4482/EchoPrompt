@@ -15,7 +15,7 @@ interface SmartInputProps {
 }
 
 const SmartInput = ({ 
-  value, 
+  value = '', 
   onChange, 
   placeholder, 
   suggestions = [], 
@@ -29,7 +29,7 @@ const SmartInput = ({
 
   // Filter suggestions based on current value
   const filteredSuggestions = suggestions.filter(suggestion =>
-    suggestion.toLowerCase().includes(value.toLowerCase())
+    suggestion && typeof suggestion === 'string' && value && suggestion.toLowerCase().includes(value.toLowerCase())
   );
 
   useEffect(() => {

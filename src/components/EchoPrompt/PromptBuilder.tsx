@@ -8,11 +8,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { ChevronDown, ChevronUp, Sparkles, Save, FolderOpen, Zap, Settings, Bot, FileText, Wand2 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { ChevronDown, ChevronUp, Sparkles, Save, FolderOpen, Zap, Settings, Bot, FileText, Wand2, HelpCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiService, PromptData } from "@/services/api";
 import SmartInput from "./SmartInput";
 import TemplateDialog from "./TemplateDialog";
+import KeyboardShortcuts from "./KeyboardShortcuts";
 import { useAI } from "@/contexts/AIContext";
 
 // Remove local interface since we're importing from API service
@@ -87,9 +89,11 @@ const constraintSuggestions = [
 
 interface PromptBuilderProps {
   onPromptChange: (prompt: string) => void;
+  templateData?: PromptData;
+  onPromptSaved?: () => void;
 }
 
-const PromptBuilder = ({ onPromptChange }: PromptBuilderProps) => {
+const PromptBuilder = ({ onPromptChange, templateData, onPromptSaved }: PromptBuilderProps) => {
   const { toast } = useToast();
   const { startGeneration, completeGeneration } = useAI();
   const [promptData, setPromptData] = useState<PromptData>({
@@ -140,6 +144,31 @@ const PromptBuilder = ({ onPromptChange }: PromptBuilderProps) => {
       }
     }
   }, []);
+
+  // Load template data when provided as prop
+  useEffect(() => {
+    if (templateData) {
+      console.log('📝 Loading template data from prop:', templateData);
+      // Ensure all values are strings to prevent undefined errors
+      const safeTemplateData = {
+        role: templateData.role || "",
+        task: templateData.task || "",
+        context: templateData.context || "",
+        tone: templateData.tone || "",
+        outputFormat: templateData.outputFormat || "",
+        constraints: templateData.constraints || "",
+        responseLength: templateData.responseLength || "",
+        audience: templateData.audience || "",
+        industry: templateData.industry || "",
+        mood: templateData.mood || "",
+        language: templateData.language || "",
+        complexity: templateData.complexity || "",
+        customVariables: templateData.customVariables || ""
+      };
+      setPromptData(safeTemplateData);
+      generatePromptText(safeTemplateData);
+    }
+  }, [templateData]);
 
   const updatePromptData = useCallback((field: keyof PromptData, value: string) => {
     setPromptData(prev => ({ ...prev, [field]: value }));
@@ -297,6 +326,11 @@ const PromptBuilder = ({ onPromptChange }: PromptBuilderProps) => {
           description: "Your prompt has been saved to My Prompts",
           duration: 4000,
         });
+        
+        // Trigger community hub refresh
+        if (onPromptSaved) {
+          onPromptSaved();
+        }
       } else {
         throw new Error(response.error || 'Save failed');
       }
@@ -309,6 +343,11 @@ const PromptBuilder = ({ onPromptChange }: PromptBuilderProps) => {
         description: "Your prompt has been saved (demo mode)",
         duration: 4000,
       });
+      
+      // Trigger community hub refresh even in demo mode
+      if (onPromptSaved) {
+        onPromptSaved();
+      }
     } finally {
       setIsSaving(false);
     }
@@ -333,12 +372,47 @@ const PromptBuilder = ({ onPromptChange }: PromptBuilderProps) => {
   };
 
   const handleTemplateLoaded = (loadedPromptData: PromptData) => {
-    setPromptData(loadedPromptData);
-    generatePromptText(loadedPromptData);
+    // Ensure all values are strings to prevent undefined errors
+    const safeTemplateData = {
+      role: loadedPromptData.role || "",
+      task: loadedPromptData.task || "",
+      context: loadedPromptData.context || "",
+      tone: loadedPromptData.tone || "",
+      outputFormat: loadedPromptData.outputFormat || "",
+      constraints: loadedPromptData.constraints || "",
+      responseLength: loadedPromptData.responseLength || "",
+      audience: loadedPromptData.audience || "",
+      industry: loadedPromptData.industry || "",
+      mood: loadedPromptData.mood || "",
+      language: loadedPromptData.language || "",
+      complexity: loadedPromptData.complexity || "",
+      customVariables: loadedPromptData.customVariables || ""
+    };
+    setPromptData(safeTemplateData);
+    generatePromptText(safeTemplateData);
+  };
+
+  // Keyboard shortcut handlers
+  const handleFocusTask = () => {
+    // Focus the task input field
+    const taskInput = document.querySelector('input[placeholder*="task"], textarea[placeholder*="task"]') as HTMLElement;
+    if (taskInput) {
+      taskInput.focus();
+    }
   };
 
   return (
     <div className="flex flex-col h-full">
+      {/* Keyboard Shortcuts */}
+      <KeyboardShortcuts
+        onGeneratePrompt={handleGenerateWithAI}
+        onSavePrompt={handleSavePrompt}
+        onSaveTemplate={handleSaveTemplate}
+        onLoadTemplate={handleLoadTemplate}
+        onToggleAdvanced={() => setIsAdvancedOpen(!isAdvancedOpen)}
+        onFocusTask={handleFocusTask}
+      />
+      
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
         {/* Basic Fields */}
         <Card className="glass-card border-border/30 bg-gradient-to-br from-card/90 to-card/60 backdrop-blur-xl">
@@ -649,14 +723,42 @@ const PromptBuilder = ({ onPromptChange }: PromptBuilderProps) => {
       <div className="p-6 border-t border-border/30 bg-gradient-to-br from-background/90 via-background/80 to-background/70 backdrop-blur-sm">
         <div className="space-y-6">
           <div className="text-center">
-            <div className="inline-flex items-center space-x-2 mb-3">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 flex items-center justify-center">
-                <Sparkles className="w-4 h-4 text-white" />
+              <div className="inline-flex items-center space-x-2 mb-3">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 flex items-center justify-center">
+                  <Sparkles className="w-4 h-4 text-white" />
+                </div>
+                <h3 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                  Generate Your Prompt
+                </h3>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                        <HelpCircle className="w-4 h-4 text-muted-foreground" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-xs">
+                      <div className="space-y-2 text-sm">
+                        <p className="font-semibold">Keyboard Shortcuts:</p>
+                        <div className="space-y-1">
+                          <div className="flex justify-between">
+                            <span>Generate:</span>
+                            <Badge variant="outline" className="text-xs">Ctrl/Cmd + Enter</Badge>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Save:</span>
+                            <Badge variant="outline" className="text-xs">Ctrl/Cmd + S</Badge>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Focus Task:</span>
+                            <Badge variant="outline" className="text-xs">F</Badge>
+                          </div>
+                        </div>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
-              <h3 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                Generate Your Prompt
-              </h3>
-            </div>
             <p className="text-sm text-muted-foreground mb-6">AI-powered prompt generation with live preview</p>
           </div>
           

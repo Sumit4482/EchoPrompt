@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Settings, Zap, Database, FileText, Sparkles, ChevronDown } from "lucide-react";
+import { Settings, Zap, Database, FileText, Sparkles, ChevronDown, Menu, X } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,6 +18,7 @@ import { useAI } from "@/contexts/AIContext";
 
 const Header = () => {
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
   const { isGenerating, lastGenerationStatus } = useAI();
 
@@ -91,27 +92,14 @@ const Header = () => {
           
           {/* Mobile Navigation */}
           <div className="md:hidden">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="hover-glow">
-                  <Database className="w-4 h-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem onClick={() => navigate('/my-templates')} className="cursor-pointer">
-                  <Database className="w-4 h-4 mr-2" />
-                  My Templates
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => navigate('/my-prompts')} className="cursor-pointer">
-                  <FileText className="w-4 h-4 mr-2" />
-                  My Prompts
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => navigate('/library')} className="cursor-pointer">
-                  <Sparkles className="w-4 h-4 mr-2" />
-                  Library
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="hover-glow"
+            >
+              {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+            </Button>
           </div>
 
           <Button 
@@ -135,6 +123,82 @@ const Header = () => {
       
       {/* Loading Bar */}
       <LoadingBar isVisible={isGenerating} />
+      
+      {/* Mobile Menu Overlay */}
+      {mobileMenuOpen && (
+        <div className="md:hidden fixed inset-0 z-40 bg-background/95 backdrop-blur-sm">
+          <div className="flex flex-col h-full">
+            <div className="flex items-center justify-between p-6 border-b border-border/30">
+              <h2 className="text-lg font-semibold">Navigation</h2>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+            <div className="flex-1 p-6 space-y-4">
+              <Button
+                variant="ghost"
+                className="w-full justify-start h-12 text-left"
+                onClick={() => {
+                  navigate('/my-templates');
+                  setMobileMenuOpen(false);
+                }}
+              >
+                <Database className="w-5 h-5 mr-3" />
+                <div>
+                  <p className="font-medium">My Templates</p>
+                  <p className="text-xs text-muted-foreground">Manage your templates</p>
+                </div>
+              </Button>
+              <Button
+                variant="ghost"
+                className="w-full justify-start h-12 text-left"
+                onClick={() => {
+                  navigate('/my-prompts');
+                  setMobileMenuOpen(false);
+                }}
+              >
+                <FileText className="w-5 h-5 mr-3" />
+                <div>
+                  <p className="font-medium">My Prompts</p>
+                  <p className="text-xs text-muted-foreground">View your generated prompts</p>
+                </div>
+              </Button>
+              <Button
+                variant="ghost"
+                className="w-full justify-start h-12 text-left"
+                onClick={() => {
+                  navigate('/library');
+                  setMobileMenuOpen(false);
+                }}
+              >
+                <Sparkles className="w-5 h-5 mr-3" />
+                <div>
+                  <p className="font-medium">Library</p>
+                  <p className="text-xs text-muted-foreground">Browse public templates</p>
+                </div>
+              </Button>
+              <Button
+                variant="ghost"
+                className="w-full justify-start h-12 text-left"
+                onClick={() => {
+                  setSettingsOpen(true);
+                  setMobileMenuOpen(false);
+                }}
+              >
+                <Settings className="w-5 h-5 mr-3" />
+                <div>
+                  <p className="font-medium">Settings</p>
+                  <p className="text-xs text-muted-foreground">Configure your preferences</p>
+                </div>
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 };
