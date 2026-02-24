@@ -7,6 +7,25 @@ A comprehensive, full-stack application for creating, managing, and sharing AI p
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.0.0-blue)
 ![Node.js](https://img.shields.io/badge/Node.js-18.0.0-green)
 
+| | | |
+|:---:|:---:|:---:|
+| ![Prompt Builder](screenshots/image%20(18).png) | ![Templates](screenshots/image%20(19).png) | ![Community Hub](screenshots/image%20(20).png) |
+
+| | | |
+|:---:|:---:|:---:|
+| ![Builder](screenshots/image%20(21).png) | ![Dark mode](screenshots/image%20(22).png) | ![Mobile](screenshots/image%20(23).png) |
+
+<details>
+<summary>More screenshots</summary>
+
+| | | |
+|:---:|:---:|:---:|
+| ![Screenshot 7](screenshots/image%20(24).png) | ![Screenshot 8](screenshots/image%20(25).png) | ![Screenshot 9](screenshots/image%20(26).png) |
+| ![Screenshot 10](screenshots/image%20(27).png) | ![Screenshot 11](screenshots/image%20(28).png) | ![Screenshot 12](screenshots/image%20(29).png) |
+| ![Screenshot 13](screenshots/image%20(30).png) | | |
+
+</details>
+
 ## ✨ Features
 
 ### 🎯 **Core Functionality**
@@ -121,6 +140,7 @@ emini-prompt-guide/
 │   │   └── services/             # Business logic
 │   └── dist/                     # Compiled TypeScript
 ├── public/                       # Static assets
+├── screenshots/                  # App screenshots for README
 └── docs/                         # Documentation
 ```
 
