@@ -15,16 +15,17 @@ A comprehensive, full-stack application for creating, managing, and sharing AI p
 |:---:|:---:|:---:|
 | ![Builder](screenshots/image%20(21).png) | ![Dark mode](screenshots/image%20(22).png) | ![Mobile](screenshots/image%20(23).png) |
 
-<details>
-<summary>More screenshots</summary>
+| | | |
+|:---:|:---:|:---:|
+| ![](screenshots/image%20(24).png) | ![](screenshots/image%20(25).png) | ![](screenshots/image%20(26).png) |
 
 | | | |
 |:---:|:---:|:---:|
-| ![Screenshot 7](screenshots/image%20(24).png) | ![Screenshot 8](screenshots/image%20(25).png) | ![Screenshot 9](screenshots/image%20(26).png) |
-| ![Screenshot 10](screenshots/image%20(27).png) | ![Screenshot 11](screenshots/image%20(28).png) | ![Screenshot 12](screenshots/image%20(29).png) |
-| ![Screenshot 13](screenshots/image%20(30).png) | | |
+| ![](screenshots/image%20(27).png) | ![](screenshots/image%20(28).png) | ![](screenshots/image%20(29).png) |
 
-</details>
+| | | |
+|:---:|:---:|:---:|
+| ![](screenshots/image%20(30).png) | | |
 
 ## ✨ Features
 
