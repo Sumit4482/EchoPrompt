@@ -43,13 +43,14 @@ const LoadingBar = ({
   if (!isVisible) return null;
 
   return (
-    <div className={`fixed top-0 left-0 right-0 z-50 ${className}`}>
-      <div className="h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-indigo-500">
-        <div 
-          className="h-full bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 transition-all duration-300 ease-out shadow-lg"
-          style={{ 
+    <div className={`fixed top-0 left-0 right-0 z-[60] animate-fade-in ${className}`}>
+      <div className="h-[2px] bg-transparent">
+        <div
+          className="h-full bg-gradient-to-r from-blue-500 via-purple-500 to-blue-600"
+          style={{
             width: `${progress}%`,
-            boxShadow: '0 0 10px rgba(59, 130, 246, 0.5)'
+            transition: 'width 120ms cubic-bezier(0.4, 0, 0.2, 1)',
+            boxShadow: '0 0 12px rgba(99, 102, 241, 0.6), 0 0 4px rgba(139, 92, 246, 0.4)',
           }}
         />
       </div>

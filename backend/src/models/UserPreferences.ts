@@ -26,7 +26,6 @@ const UserPreferencesSchema = new Schema<IUserPreferences>({
     type: String,
     required: true,
     unique: true,
-    index: true
   },
   preferences: {
     theme: {
@@ -94,8 +93,7 @@ const UserPreferencesSchema = new Schema<IUserPreferences>({
   toObject: { virtuals: true }
 });
 
-// Index for better query performance
-UserPreferencesSchema.index({ userId: 1 });
+// userId indexed via unique:true above
 UserPreferencesSchema.index({ lastUpdated: -1 });
 
 // Middleware to update lastUpdated on save

@@ -56,10 +56,11 @@ export interface ITemplate extends Document {
   name: string;
   description?: string;
   promptData: PromptData;
-  category: string;
-  tags: string[];
-  isPublic: boolean;
-  createdBy: Types.ObjectId;
+  category?: string;
+  tags?: string[];
+  isPublic?: boolean;
+  userId?: string;
+  createdBy?: Types.ObjectId;
   usageCount: number;
   rating: {
     average: number;
@@ -67,9 +68,10 @@ export interface ITemplate extends Document {
   };
   createdAt: Date;
   updatedAt: Date;
+  // Virtual
+  popularityScore: number;
   // Methods
   incrementUsage(): Promise<ITemplate>;
-  updateRating(rating: number): Promise<ITemplate>;
 }
 
 // Generated Prompt types
@@ -77,32 +79,32 @@ export interface IPrompt extends Document {
   _id: Types.ObjectId;
   content: string;
   promptData: PromptData;
-  templateId?: Types.ObjectId;
+  templateId?: Types.ObjectId | string;
+  userId?: string;
   createdBy?: Types.ObjectId;
+  isPublic?: boolean;
+  tags?: string[];
   metadata: {
     version: string;
     generatedAt: Date;
     optimized: boolean;
     aiEnhanced: boolean;
+    generationTime?: number;
   };
   analytics: {
     views: number;
     copies: number;
     exports: number;
-    ratings: Array<{
-      userId: Types.ObjectId;
-      rating: number;
-      feedback?: string;
-      createdAt: Date;
-    }>;
+    ratings: number[];
   };
   createdAt: Date;
   updatedAt: Date;
   // Virtual fields
   averageRating: number;
-  totalInteractions: number;
+  engagementScore: number;
   wordCount: number;
   characterCount: number;
+  keywords?: string[];
   // Methods
   incrementViews(): Promise<IPrompt>;
   incrementCopies(): Promise<IPrompt>;

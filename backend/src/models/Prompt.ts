@@ -1,4 +1,5 @@
-import mongoose, { Document, Schema } from 'mongoose';
+import mongoose, { Document, Schema, Types } from 'mongoose';
+import { PROMPT_CONTENT_MAX_LENGTH } from '../constants/promptLimits';
 
 export interface IPrompt extends Document {
   content: string;
@@ -17,9 +18,9 @@ export interface IPrompt extends Document {
     complexity?: string;
     customVariables?: string;
   };
-  templateId?: string;
+  templateId?: Types.ObjectId | string;
   userId?: string;
-  createdBy?: string;
+  createdBy?: Types.ObjectId;
   isPublic?: boolean;
   tags?: string[];
   metadata: {
@@ -40,6 +41,11 @@ export interface IPrompt extends Document {
   keywords?: string[];
   createdAt: Date;
   updatedAt: Date;
+  averageRating: number;
+  incrementViews(): Promise<IPrompt>;
+  incrementCopies(): Promise<IPrompt>;
+  incrementExports(): Promise<IPrompt>;
+  addRating(userId: string, rating: number, feedback?: string): Promise<IPrompt>;
 }
 
 const PromptSchema = new Schema<IPrompt>({
@@ -47,7 +53,7 @@ const PromptSchema = new Schema<IPrompt>({
     type: String,
     required: true,
     trim: true,
-    maxlength: 10000
+    maxlength: PROMPT_CONTENT_MAX_LENGTH
   },
   promptData: {
     role: { type: String, trim: true },
@@ -166,8 +172,8 @@ PromptSchema.index({ isPublic: 1, createdAt: -1 });
 PromptSchema.index({ createdBy: 1, createdAt: -1 });
 
 // Virtual for average rating
-PromptSchema.virtual('averageRating').get(function() {
-  if (!this.analytics.ratings || this.analytics.ratings.length === 0) {
+PromptSchema.virtual('averageRating').get(function (this: IPrompt) {
+  if (!this.analytics?.ratings || this.analytics.ratings.length === 0) {
     return 0;
   }
   const sum = this.analytics.ratings.reduce((acc, rating) => acc + rating, 0);
@@ -175,10 +181,33 @@ PromptSchema.virtual('averageRating').get(function() {
 });
 
 // Virtual for engagement score
-PromptSchema.virtual('engagementScore').get(function() {
-  return (this.analytics.views * 0.3) + 
-         (this.analytics.copies * 0.4) + 
+PromptSchema.virtual('engagementScore').get(function (this: IPrompt) {
+  return (this.analytics.views * 0.3) +
+         (this.analytics.copies * 0.4) +
          (this.analytics.exports * 0.3);
 });
+
+PromptSchema.methods.incrementViews = function () {
+  this.analytics.views += 1;
+  return this.save();
+};
+
+PromptSchema.methods.incrementCopies = function () {
+  this.analytics.copies += 1;
+  return this.save();
+};
+
+PromptSchema.methods.incrementExports = function () {
+  this.analytics.exports += 1;
+  return this.save();
+};
+
+PromptSchema.methods.addRating = function (userId: string, rating: number) {
+  if (!this.analytics.ratings) {
+    this.analytics.ratings = [];
+  }
+  this.analytics.ratings.push(rating);
+  return this.save();
+};
 
 export const Prompt = mongoose.model<IPrompt>('Prompt', PromptSchema);

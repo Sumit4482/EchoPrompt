@@ -3,6 +3,8 @@ import { query, validationResult } from 'express-validator';
 import User from '../models/User';
 import { Template } from '../models/Template';
 import { Prompt } from '../models/Prompt';
+import Analytics from '../models/Analytics';
+import { UserPreferences } from '../models/UserPreferences';
 import { authenticate } from '../middleware/auth';
 import { AuthenticatedRequest, ApiResponse } from '../types';
 
@@ -251,13 +253,13 @@ router.delete('/account', authenticate, async (req: AuthenticatedRequest, res) =
   try {
     const userId = req.user!._id;
 
-    // Delete all user's prompts
-    await Prompt.deleteMany({ createdBy: userId });
+    await Promise.all([
+      Prompt.deleteMany({ createdBy: userId }),
+      Template.deleteMany({ createdBy: userId }),
+      Analytics.deleteMany({ userId }),
+      UserPreferences.findOneAndDelete({ userId: userId.toString() }),
+    ]);
 
-    // Delete all user's templates
-    await Template.deleteMany({ createdBy: userId });
-
-    // Delete user account
     await User.findByIdAndDelete(userId);
 
     res.json({

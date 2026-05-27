@@ -1,5 +1,6 @@
 import express from 'express';
 import { body, query, validationResult } from 'express-validator';
+import { Types } from 'mongoose';
 import { Prompt } from '../models/Prompt';
 import { Template } from '../models/Template';
 import Analytics from '../models/Analytics';
@@ -7,6 +8,7 @@ import { authenticate, optionalAuth } from '../middleware/auth';
 import { AuthenticatedRequest, ApiResponse, PromptQuery, ExportFormat } from '../types';
 import { PromptGenerator } from '../utils/promptGenerator';
 import { geminiService } from '../services/geminiService';
+import { AI_GENERATED_CONTENT_MAX, clampPromptContent } from '../constants/promptLimits';
 
 const router = express.Router();
 
@@ -74,12 +76,14 @@ router.post('/generate', optionalAuth, [
     }
     
     const generationTime = Date.now() - startTime;
+    content = clampPromptContent(content, AI_GENERATED_CONTENT_MAX);
 
     // Calculate word and character counts
     const wordCount = content.trim().split(/\s+/).filter(word => word.length > 0).length;
     const characterCount = content.length;
 
     // Create and save the prompt
+    const keywords = PromptGenerator.extractKeywords(promptData);
     const prompt = new Prompt({
       content,
       promptData,
@@ -87,6 +91,7 @@ router.post('/generate', optionalAuth, [
       createdBy: req.user?._id || null,
       wordCount,
       characterCount,
+      keywords,
       analytics: {
         views: 0,
         copies: 0,
@@ -96,7 +101,8 @@ router.post('/generate', optionalAuth, [
         version: '1.0.0',
         generatedAt: new Date(),
         optimized: optimize,
-        aiEnhanced: aiEnhanced
+        aiEnhanced: aiEnhanced,
+        generationTime
       }
     });
 
@@ -108,7 +114,7 @@ router.post('/generate', optionalAuth, [
         userId: req.user?._id || undefined,
         eventType: aiEnhanced ? 'ai_generation_success' : 'ai_generation_fallback',
         metadata: {
-          promptId: prompt._id,
+          promptId: prompt._id as Types.ObjectId,
           aiProvider: aiEnhanced ? 'gemini' : 'fallback',
           generationTime: generationTime,
           wordCount: wordCount,
@@ -158,6 +164,91 @@ router.post('/generate', optionalAuth, [
       success: false,
       error: 'Server error'
     } as ApiResponse);
+  }
+});
+
+// @route   POST /api/prompts/generate/local
+// @desc    Generate a prompt locally without AI
+// @access  Public/Private (optional auth)
+router.post('/generate/local', optionalAuth, [
+  body('promptData.task')
+    .notEmpty()
+    .withMessage('Task is required'),
+  body('optimize')
+    .optional()
+    .isBoolean()
+    .withMessage('Optimize must be a boolean'),
+], async (req: AuthenticatedRequest, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        details: errors.array()
+      } as ApiResponse);
+    }
+
+    const { promptData, optimize = false } = req.body;
+
+    const validation = PromptGenerator.validatePromptData(promptData);
+    if (!validation.isValid) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid prompt data',
+        details: validation.errors
+      } as ApiResponse);
+    }
+
+    let content = PromptGenerator.generatePrompt(promptData);
+    if (optimize) {
+      content = PromptGenerator.optimizePrompt(content);
+    }
+
+    const wordCount = content.trim().split(/\s+/).filter(w => w.length > 0).length;
+    const characterCount = content.length;
+    const keywords = PromptGenerator.extractKeywords(promptData);
+
+    const prompt = new Prompt({
+      content,
+      promptData,
+      createdBy: req.user?._id || null,
+      wordCount,
+      characterCount,
+      keywords,
+      analytics: { views: 0, copies: 0, exports: 0 },
+      metadata: {
+        version: '1.0.0',
+        generatedAt: new Date(),
+        optimized: optimize,
+        aiEnhanced: false,
+        generationTime: 0
+      }
+    });
+
+    await prompt.save();
+
+    if (req.user) {
+      req.user.usage.promptsGenerated += 1;
+      await req.user.save();
+    }
+
+    res.status(201).json({
+      success: true,
+      data: {
+        prompt,
+        metadata: {
+          wordCount,
+          characterCount,
+          complexityScore: PromptGenerator.calculateComplexityScore(promptData),
+          keywords
+        }
+      },
+      message: 'Prompt generated locally'
+    } as ApiResponse);
+  } catch (error) {
+    console.error('Local generate error:', error);
+    res.status(500).json({ success: false, error: 'Server error' } as ApiResponse);
   }
 });
 
@@ -358,7 +449,12 @@ router.get('/:id', authenticate, async (req: AuthenticatedRequest, res) => {
     }
 
     // Check if user owns this prompt
-    if (prompt.createdBy && prompt.createdBy._id.toString() !== req.user!._id.toString()) {
+    const createdBy = prompt.createdBy as Types.ObjectId | { _id: Types.ObjectId } | undefined;
+    const ownerId = createdBy && typeof createdBy === 'object' && '_id' in createdBy
+      ? createdBy._id.toString()
+      : createdBy?.toString();
+
+    if (ownerId && ownerId !== req.user!._id.toString()) {
       return res.status(403).json({
         success: false,
         error: 'Access denied'
@@ -539,7 +635,7 @@ router.post('/save', authenticate, [
     const { content, promptData, isPublic = false, tags = [] } = req.body;
 
     // Ensure content is a string
-    const contentStr = String(content || '');
+    const contentStr = clampPromptContent(String(content || ''));
 
     // Calculate word and character count
     const wordCount = contentStr.trim().split(/\s+/).filter((word: string) => word.length > 0).length;

@@ -104,9 +104,7 @@ const userSchema = new Schema<IUser>({
   },
 });
 
-// Indexes
-userSchema.index({ email: 1 });
-userSchema.index({ username: 1 });
+// Indexes (email and username are indexed via unique:true above)
 userSchema.index({ 'usage.lastActivity': -1 });
 
 // Pre-save hook to hash password

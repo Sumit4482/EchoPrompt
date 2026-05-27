@@ -10,6 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { Save, FolderOpen, Trash2, Star, Download, Eye } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiService, Template, PromptData } from "@/services/api";
+import { trackPromptDataSuggestions } from "@/lib/suggestionFeedback";
 
 interface TemplateDialogProps {
   isOpen: boolean;
@@ -90,6 +91,7 @@ const TemplateDialog = ({ isOpen, onClose, mode, currentPromptData, onLoadTempla
       });
 
       if (response.success) {
+        trackPromptDataSuggestions(currentPromptData);
         toast({
           title: "Success!",
           description: `Template "${templateName}" saved successfully`,

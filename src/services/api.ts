@@ -166,6 +166,31 @@ class ApiService {
     localStorage.removeItem('authToken');
   }
 
+  async updateProfile(data: {
+    firstName?: string;
+    lastName?: string;
+    preferences?: Partial<User['preferences']>;
+  }): Promise<ApiResponse<{ user: User }>> {
+    const response = await fetch(`${API_BASE_URL}/auth/profile`, {
+      method: 'PUT',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    return this.handleResponse<{ user: User }>(response);
+  }
+
+  async changePassword(data: {
+    currentPassword: string;
+    newPassword: string;
+  }): Promise<ApiResponse> {
+    const response = await fetch(`${API_BASE_URL}/auth/change-password`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    return this.handleResponse(response);
+  }
+
   // Prompt Generation
   async generatePrompt(promptData: PromptData, optimize: boolean = false): Promise<ApiResponse<{
     prompt: GeneratedPrompt;
@@ -286,6 +311,7 @@ class ApiService {
     category?: string;
     search?: string;
     isPublic?: boolean;
+    mine?: boolean;
   }): Promise<ApiResponse<Template[]>> {
     const queryParams = new URLSearchParams();
     if (params?.page) queryParams.append('page', params.page.toString());
@@ -293,6 +319,7 @@ class ApiService {
     if (params?.category) queryParams.append('category', params.category);
     if (params?.search) queryParams.append('search', params.search);
     if (params?.isPublic !== undefined) queryParams.append('isPublic', params.isPublic.toString());
+    if (params?.mine !== undefined) queryParams.append('mine', params.mine.toString());
 
     const response = await fetch(`${API_BASE_URL}/templates?${queryParams}`, {
       headers: this.getAuthHeaders(),
@@ -406,6 +433,36 @@ class ApiService {
   async getTrending(period: '24h' | '7d' | '30d' = '7d'): Promise<ApiResponse<any>> {
     const response = await fetch(`${API_BASE_URL}/analytics/trending?period=${period}`);
     return this.handleResponse(response);
+  }
+
+  async getFieldSuggestions(limit = 150): Promise<ApiResponse<Record<string, string[]>>> {
+    const response = await fetch(`${API_BASE_URL}/analytics/suggestions?limit=${limit}`);
+    return this.handleResponse<Record<string, string[]>>(response);
+  }
+
+  async recordFieldSuggestion(
+    field: string,
+    value: string,
+    weight = 1
+  ): Promise<ApiResponse<{ recorded: number }>> {
+    const response = await fetch(`${API_BASE_URL}/analytics/suggestions/record`, {
+      method: 'POST',
+      headers: { ...this.getAuthHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ field, value, weight }),
+    });
+    return this.handleResponse<{ recorded: number }>(response);
+  }
+
+  async recordFieldSuggestionsFromPromptData(
+    promptData: Record<string, string | undefined>,
+    weight = 2
+  ): Promise<ApiResponse<{ recorded: number }>> {
+    const response = await fetch(`${API_BASE_URL}/analytics/suggestions/record`, {
+      method: 'POST',
+      headers: { ...this.getAuthHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ promptData, weight }),
+    });
+    return this.handleResponse<{ recorded: number }>(response);
   }
 
   async getUserInsights(period: '7d' | '30d' | '90d' = '30d'): Promise<ApiResponse<any>> {

@@ -1,263 +1,226 @@
-import React from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { 
-  FileText, 
-  Mail, 
-  MessageSquare, 
-  Code, 
-  BookOpen, 
-  Briefcase,
-  Heart,
-  Lightbulb,
-  Target,
-  Users
-} from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { FileText, Search, SlidersHorizontal, Loader2 } from 'lucide-react';
+import { apiService, Template } from '@/services/api';
 
-interface BeginnerTemplate {
-  id: string;
-  title: string;
-  description: string;
-  category: string;
-  icon: React.ReactNode;
-  difficulty: 'Easy' | 'Medium' | 'Advanced';
-  useCase: string;
-  promptData: {
-    role: string;
-    task: string;
-    context: string;
-    tone: string;
-    outputFormat: string;
-  };
-}
-
-const beginnerTemplates: BeginnerTemplate[] = [
-  {
-    id: 'email-professional',
-    title: 'Professional Email',
-    description: 'Write a clear, professional email for any business situation',
-    category: 'Communication',
-    icon: <Mail className="w-6 h-6" />,
-    difficulty: 'Easy',
-    useCase: 'Business emails, follow-ups, introductions',
-    promptData: {
-      role: 'Professional Communication Expert',
-      task: 'Write a professional email',
-      context: 'Business communication that is clear and respectful',
-      tone: 'Professional and courteous',
-      outputFormat: 'Email format'
-    }
-  },
-  {
-    id: 'social-media-post',
-    title: 'Social Media Post',
-    description: 'Create engaging social media content for any platform',
-    category: 'Marketing',
-    icon: <MessageSquare className="w-6 h-6" />,
-    difficulty: 'Easy',
-    useCase: 'Instagram, Twitter, LinkedIn, Facebook posts',
-    promptData: {
-      role: 'Social Media Marketing Expert',
-      task: 'Create an engaging social media post',
-      context: 'Social media platform with specific audience',
-      tone: 'Engaging and authentic',
-      outputFormat: 'Social media post with hashtags'
-    }
-  },
-  {
-    id: 'learning-explanation',
-    title: 'Learning Explanation',
-    description: 'Explain complex topics in simple, easy-to-understand terms',
-    category: 'Education',
-    icon: <BookOpen className="w-6 h-6" />,
-    difficulty: 'Easy',
-    useCase: 'Teaching, learning, explaining concepts',
-    promptData: {
-      role: 'Expert Teacher and Educator',
-      task: 'Explain a complex topic in simple terms',
-      context: 'Educational setting for better understanding',
-      tone: 'Clear and encouraging',
-      outputFormat: 'Step-by-step explanation with examples'
-    }
-  },
-  {
-    id: 'code-explanation',
-    title: 'Code Explanation',
-    description: 'Get clear explanations of code and programming concepts',
-    category: 'Programming',
-    icon: <Code className="w-6 h-6" />,
-    difficulty: 'Medium',
-    useCase: 'Learning to code, understanding existing code',
-    promptData: {
-      role: 'Senior Software Engineer and Code Reviewer',
-      task: 'Explain this code clearly and comprehensively',
-      context: 'Educational environment for learning programming',
-      tone: 'Technical but accessible',
-      outputFormat: 'Code explanation with examples and best practices'
-    }
-  },
-  {
-    id: 'job-application',
-    title: 'Job Application',
-    description: 'Craft compelling cover letters and resume content',
-    category: 'Career',
-    icon: <Briefcase className="w-6 h-6" />,
-    difficulty: 'Medium',
-    useCase: 'Job applications, career advancement',
-    promptData: {
-      role: 'Career Coach and HR Professional',
-      task: 'Help with job application materials',
-      context: 'Professional job application process',
-      tone: 'Confident and professional',
-      outputFormat: 'Professional application materials'
-    }
-  },
-  {
-    id: 'creative-writing',
-    title: 'Creative Writing',
-    description: 'Generate creative content, stories, and ideas',
-    category: 'Creative',
-    icon: <Heart className="w-6 h-6" />,
-    difficulty: 'Easy',
-    useCase: 'Stories, poems, creative projects',
-    promptData: {
-      role: 'Creative Writing Expert and Storyteller',
-      task: 'Create engaging creative content',
-      context: 'Creative writing project',
-      tone: 'Imaginative and engaging',
-      outputFormat: 'Creative writing piece'
-    }
-  },
-  {
-    id: 'problem-solving',
-    title: 'Problem Solving',
-    description: 'Get structured approaches to solve any problem',
-    category: 'Problem Solving',
-    icon: <Lightbulb className="w-6 h-6" />,
-    difficulty: 'Medium',
-    useCase: 'Business problems, personal challenges, decision making',
-    promptData: {
-      role: 'Problem-Solving Expert and Business Consultant',
-      task: 'Provide a structured approach to solve this problem',
-      context: 'Problem-solving situation requiring analysis',
-      tone: 'Analytical and solution-focused',
-      outputFormat: 'Structured problem-solving framework'
-    }
-  },
-  {
-    id: 'goal-setting',
-    title: 'Goal Setting',
-    description: 'Create actionable plans to achieve your goals',
-    category: 'Productivity',
-    icon: <Target className="w-6 h-6" />,
-    difficulty: 'Easy',
-    useCase: 'Personal goals, project planning, life planning',
-    promptData: {
-      role: 'Goal-Setting Coach and Productivity Expert',
-      task: 'Create an actionable plan to achieve this goal',
-      context: 'Goal achievement and personal development',
-      tone: 'Motivational and practical',
-      outputFormat: 'Step-by-step action plan with milestones'
-    }
-  },
-  {
-    id: 'team-communication',
-    title: 'Team Communication',
-    description: 'Improve team meetings, collaboration, and communication',
-    category: 'Teamwork',
-    icon: <Users className="w-6 h-6" />,
-    difficulty: 'Medium',
-    useCase: 'Team meetings, project updates, collaboration',
-    promptData: {
-      role: 'Team Communication Expert and Leadership Coach',
-      task: 'Improve team communication and collaboration',
-      context: 'Professional team environment',
-      tone: 'Collaborative and clear',
-      outputFormat: 'Team communication strategy and guidelines'
-    }
-  }
-];
+const PAGE_SIZE = 9;
 
 interface BeginnerTemplatesProps {
-  onTemplateSelect: (template: BeginnerTemplate) => void;
+  onTemplateSelect: (template: Template) => void;
 }
 
 const BeginnerTemplates: React.FC<BeginnerTemplatesProps> = ({ onTemplateSelect }) => {
-  const getDifficultyColor = (difficulty: string) => {
-    switch (difficulty) {
-      case 'Easy': return 'bg-green-100 text-green-800 border-green-200';
-      case 'Medium': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'Advanced': return 'bg-red-100 text-red-800 border-red-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [search, setSearch] = useState('');
+  const [category, setCategory] = useState('all');
+  const [sortBy, setSortBy] = useState<'usageCount' | 'rating' | 'createdAt'>('usageCount');
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+
+  // Load categories once
+  useEffect(() => {
+    apiService.getCategories()
+      .then(r => { if (r.success && r.data) setCategories(r.data); })
+      .catch(() => {});
+  }, []);
+
+  const fetchTemplates = useCallback(async (
+    pg: number,
+    q: string,
+    cat: string,
+    sort: string,
+    append = false
+  ) => {
+    append ? setIsLoadingMore(true) : setIsLoading(true);
+    try {
+      const response = await apiService.getPublicTemplates({
+        page: pg,
+        limit: PAGE_SIZE,
+        search: q || undefined,
+        category: cat !== 'all' ? cat : undefined,
+        sort,
+        order: sort === 'createdAt' ? 'desc' : 'desc',
+      });
+
+      if (response.success && response.data) {
+        setTemplates(prev => append ? [...prev, ...response.data!] : response.data!);
+        setTotal(response.pagination?.total ?? response.data.length);
+      }
+    } catch (error) {
+      console.error('Error loading templates:', error);
+      if (!append) setTemplates([]);
+    } finally {
+      append ? setIsLoadingMore(false) : setIsLoading(false);
     }
+  }, []);
+
+  // Refetch from page 1 when filters change
+  useEffect(() => {
+    setPage(1);
+    fetchTemplates(1, search, category, sortBy);
+  }, [search, category, sortBy, fetchTemplates]);
+
+  const handleLoadMore = () => {
+    const nextPage = page + 1;
+    setPage(nextPage);
+    fetchTemplates(nextPage, search, category, sortBy, true);
   };
 
+  const hasMore = templates.length < total;
+
+  // Skeleton cards
+  const SkeletonCard = () => (
+    <Card className="flex flex-col border-border/40">
+      <CardHeader className="pb-2 pt-4 px-4">
+        <div className="h-4 w-3/4 bg-muted/40 rounded animate-pulse" />
+        <div className="h-3 w-full bg-muted/30 rounded animate-pulse mt-2" />
+        <div className="h-3 w-2/3 bg-muted/20 rounded animate-pulse mt-1" />
+      </CardHeader>
+      <CardContent className="px-4 pb-4 pt-2">
+        <div className="h-3 w-20 bg-muted/30 rounded animate-pulse mb-3" />
+        <div className="h-8 w-full bg-muted/30 rounded animate-pulse" />
+      </CardContent>
+    </Card>
+  );
+
   return (
-    <div className="space-y-6">
-      <div className="text-center">
-        <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-2">
-          🚀 Quick Start Templates
-        </h2>
-        <p className="text-muted-foreground">
-          Choose a template to get started instantly - no technical knowledge required!
-        </p>
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-base font-semibold">Templates</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {isLoading ? 'Loading…' : `${total} template${total !== 1 ? 's' : ''} — click to load into builder`}
+          </p>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {beginnerTemplates.map((template) => (
-          <Card 
-            key={template.id}
-            className="hover:shadow-lg transition-all duration-300 cursor-pointer border-border/30 hover:border-primary/50 group"
-            onClick={() => onTemplateSelect(template)}
-          >
-            <CardHeader className="pb-3">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2 rounded-lg bg-primary/10 text-primary group-hover:bg-primary/20 transition-colors">
-                    {template.icon}
+      {/* Filters */}
+      <div className="flex flex-col sm:flex-row gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+          <Input
+            placeholder="Search templates..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="pl-8 h-8 text-xs"
+          />
+        </div>
+
+        <Select value={category} onValueChange={setCategory}>
+          <SelectTrigger className="h-8 text-xs w-full sm:w-40">
+            <SlidersHorizontal className="w-3.5 h-3.5 mr-1.5 text-muted-foreground" />
+            <SelectValue placeholder="Category" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Categories</SelectItem>
+            {categories.map(c => (
+              <SelectItem key={c} value={c}>{c}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={sortBy} onValueChange={v => setSortBy(v as typeof sortBy)}>
+          <SelectTrigger className="h-8 text-xs w-full sm:w-36">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="usageCount">Most Used</SelectItem>
+            <SelectItem value="rating">Top Rated</SelectItem>
+            <SelectItem value="createdAt">Newest</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Grid */}
+      {isLoading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {Array.from({ length: PAGE_SIZE }).map((_, i) => <SkeletonCard key={i} />)}
+        </div>
+      ) : templates.length === 0 ? (
+        <div className="py-16 text-center border border-dashed border-border/40 rounded-xl">
+          <FileText className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+          <p className="text-sm font-medium">No templates found</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            {search || category !== 'all' ? 'Try adjusting your filters.' : 'Seed the database or create templates from the builder.'}
+          </p>
+          {(search || category !== 'all') && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="mt-3 text-xs"
+              onClick={() => { setSearch(''); setCategory('all'); }}
+            >
+              Clear filters
+            </Button>
+          )}
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {templates.map((template, i) => (
+              <Card
+                key={template._id}
+                className={`flex flex-col border-border/40 card-hover animate-slide-up stagger-${Math.min(i + 1, 6)}`}
+              >
+                <CardHeader className="pb-2 pt-4 px-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <CardTitle className="text-sm font-medium leading-snug">{template.name}</CardTitle>
+                    <FileText className="w-3.5 h-3.5 text-muted-foreground shrink-0 mt-0.5" />
                   </div>
-                  <div>
-                    <CardTitle className="text-lg font-semibold group-hover:text-primary transition-colors">
-                      {template.title}
-                    </CardTitle>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {template.category}
-                    </p>
+                  {template.description && (
+                    <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{template.description}</p>
+                  )}
+                </CardHeader>
+                <CardContent className="px-4 pb-4 pt-2 mt-auto space-y-3">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge variant="secondary" className="text-xs h-5 px-1.5">{template.category}</Badge>
+                    <span className="text-xs text-muted-foreground">{template.usageCount} uses</span>
+                    {template.rating.average > 0 && (
+                      <span className="text-xs text-muted-foreground">★ {template.rating.average.toFixed(1)}</span>
+                    )}
                   </div>
-                </div>
-                <Badge 
-                  variant="outline" 
-                  className={`text-xs ${getDifficultyColor(template.difficulty)}`}
-                >
-                  {template.difficulty}
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <p className="text-sm text-muted-foreground mb-3">
-                {template.description}
-              </p>
-              <div className="space-y-2">
-                <div className="text-xs font-medium text-foreground">
-                  💡 Perfect for:
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {template.useCase}
-                </p>
-              </div>
-              <Button 
-                className="w-full mt-4 group-hover:bg-primary group-hover:text-primary-foreground transition-all"
+                  <Button
+                    className="w-full h-8 text-xs"
+                    variant="outline"
+                    onClick={() => onTemplateSelect(template)}
+                  >
+                    Use template
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {hasMore && (
+            <div className="flex justify-center pt-2">
+              <Button
                 variant="outline"
                 size="sm"
+                className="text-xs gap-2"
+                onClick={handleLoadMore}
+                disabled={isLoadingMore}
               >
-                Use This Template
+                {isLoadingMore && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                {isLoadingMore ? 'Loading…' : `Load more (${total - templates.length} remaining)`}
               </Button>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 };

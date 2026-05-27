@@ -1,10 +1,9 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { Copy, Download, FileText, Code, Table, Eye, Edit3, Check, X } from "lucide-react";
+import { Copy, Download, Eye, Edit3 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface PromptPreviewProps {
@@ -113,90 +112,60 @@ ${text}
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="p-6 border-b border-border/30 bg-gradient-to-r from-background/90 to-background/70 backdrop-blur-sm">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center space-x-3">
-            <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-600 shadow-lg">
-              <Edit3 className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h2 className="text-xl font-bold font-display bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
-                Prompt Editor
-              </h2>
-              <p className="text-sm text-muted-foreground font-medium">
-                Edit your prompt in {activeTab} format
-              </p>
-            </div>
-          </div>
-          <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 border-emerald-200">
-            <Edit3 className="w-3 h-3 mr-1" />
-            Editable
-          </Badge>
+      <div className="shrink-0 px-4 py-3 border-b border-border/30 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Eye className="w-4 h-4 text-muted-foreground" />
+          <span className="text-sm font-medium">Preview</span>
+          {prompt && (
+            <Badge variant="secondary" className="text-xs h-5 px-1.5">
+              Editable
+            </Badge>
+          )}
         </div>
-
-        {/* Format Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-4 bg-secondary/50">
-            <TabsTrigger value="plain" className="text-xs">
-              <FileText className="w-3 h-3 mr-1" />
-              Plain
-            </TabsTrigger>
-            <TabsTrigger value="markdown" className="text-xs">
-              <Code className="w-3 h-3 mr-1" />
-              Markdown
-            </TabsTrigger>
-            <TabsTrigger value="json" className="text-xs">
-              <Code className="w-3 h-3 mr-1" />
-              JSON
-            </TabsTrigger>
-            <TabsTrigger value="table" className="text-xs">
-              <Table className="w-3 h-3 mr-1" />
-              Table
-            </TabsTrigger>
+          <TabsList className="h-7 bg-secondary/60">
+            <TabsTrigger value="plain" className="text-xs h-6 px-2">Plain</TabsTrigger>
+            <TabsTrigger value="markdown" className="text-xs h-6 px-2">MD</TabsTrigger>
+            <TabsTrigger value="json" className="text-xs h-6 px-2">JSON</TabsTrigger>
+            <TabsTrigger value="table" className="text-xs h-6 px-2">Table</TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
 
       {/* Preview Content */}
-      <div className="flex-1 overflow-hidden">
-        <Card className="h-full m-6 mt-0 glass border-border/50">
-          <CardContent className="p-0 h-full">
-            <div className="h-full max-h-[calc(100vh-300px)] overflow-y-auto p-6">
-              {prompt ? (
-                <Textarea
-                  value={getFormattedContent()}
-                  onChange={(e) => handlePromptEdit(e.target.value)}
-                  className="w-full h-full max-h-[calc(100vh-350px)] resize-none border-0 bg-transparent text-sm font-mono leading-relaxed focus:ring-0 focus:outline-none"
-                  placeholder={`Your ${activeTab} formatted prompt will appear here. You can edit it directly...`}
-                />
-              ) : (
-                <div className="flex items-center justify-center h-full text-center">
-                  <div className="space-y-2">
-                    <div className="w-12 h-12 mx-auto rounded-full bg-gradient-primary/10 flex items-center justify-center">
-                      <Edit3 className="w-6 h-6 text-primary" />
-                    </div>
-                    <p className="text-muted-foreground">
-                      Start filling out the fields to see your prompt here
-                    </p>
-                  </div>
-                </div>
-              )}
+      <div className="flex-1 overflow-hidden p-4">
+        {prompt ? (
+          <Textarea
+            value={getFormattedContent()}
+            onChange={(e) => handlePromptEdit(e.target.value)}
+            className="w-full h-full resize-none border border-border/40 bg-muted/20 text-sm font-mono leading-relaxed rounded-lg focus-visible:ring-1"
+            placeholder={`Your ${activeTab} formatted prompt will appear here. You can edit it directly...`}
+          />
+        ) : (
+          <div className="flex items-center justify-center h-full text-center rounded-lg border border-dashed border-border/40">
+            <div className="space-y-2">
+              <div className="w-10 h-10 mx-auto rounded-full bg-muted/50 flex items-center justify-center">
+                <Edit3 className="w-5 h-5 text-muted-foreground" />
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Fill in the builder fields to see your prompt here
+              </p>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        )}
       </div>
 
       {/* Export Actions */}
-      <div className="p-6 border-t border-border/50 bg-gradient-surface">
-        <div className="flex space-x-2">
+      <div className="shrink-0 px-4 py-3 border-t border-border/30">
+        <div className="flex gap-2">
           <Button
             variant="outline"
             size="sm"
             onClick={handleCopy}
             disabled={!prompt}
-            className="flex-1 transition-smooth hover:border-primary/50"
+            className="flex-1 h-8 text-xs"
           >
-            <Copy className="w-4 h-4 mr-2" />
+            <Copy className="w-3.5 h-3.5 mr-1.5" />
             Copy
           </Button>
           <Button
@@ -204,20 +173,20 @@ ${text}
             size="sm"
             onClick={() => handleExport("txt")}
             disabled={!prompt}
-            className="flex-1 transition-smooth hover:border-primary/50"
+            className="flex-1 h-8 text-xs"
           >
-            <Download className="w-4 h-4 mr-2" />
-            Export TXT
+            <Download className="w-3.5 h-3.5 mr-1.5" />
+            TXT
           </Button>
           <Button
             variant="outline"
             size="sm"
             onClick={() => handleExport("json")}
             disabled={!prompt}
-            className="flex-1 transition-smooth hover:border-primary/50"
+            className="flex-1 h-8 text-xs"
           >
-            <Download className="w-4 h-4 mr-2" />
-            Export JSON
+            <Download className="w-3.5 h-3.5 mr-1.5" />
+            JSON
           </Button>
         </div>
       </div>

@@ -15,12 +15,8 @@ import {
   Settings,
   FileText,
   Database,
-  BarChart3,
-  CreditCard,
-  HelpCircle,
   LogOut,
   Crown,
-  Zap,
   Key,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -39,16 +35,19 @@ const ProfileMenu = ({ onOpenSettings }: ProfileMenuProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isGeminiDialogOpen, setIsGeminiDialogOpen] = useState(false);
 
-  // Mock user data - replace with real user data from context
-  const mockUser = {
-    name: user?.fullName || "Demo User",
-    email: user?.email || "demo@echoprompt.com",
+  const displayName = user?.fullName || user?.username || "User";
+  const planLabel = user?.subscription?.plan
+    ? user.subscription.plan.charAt(0).toUpperCase() + user.subscription.plan.slice(1)
+    : "Free";
+  const isPro = user?.subscription?.plan === "pro" || user?.subscription?.plan === "enterprise";
+  const profile = {
+    name: displayName,
+    email: user?.email || "",
     avatar: "",
-    initials: user?.fullName?.split(' ').map(n => n[0]).join('') || "DU",
-    plan: "Free",
-    promptsGenerated: 25,
-    templatesCreated: 3,
-    totalUsage: "2.1k tokens",
+    initials: displayName.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase() || "U",
+    plan: planLabel,
+    promptsGenerated: user?.usage?.promptsGenerated ?? 0,
+    templatesCreated: user?.usage?.templatesCreated ?? 0,
   };
 
   const handleMenuAction = async (action: string) => {
@@ -56,13 +55,6 @@ const ProfileMenu = ({ onOpenSettings }: ProfileMenuProps) => {
     
     try {
       switch (action) {
-        case 'profile':
-          toast({
-            title: "👤 Profile",
-            description: "Profile management coming soon!",
-          });
-          break;
-          
         case 'templates':
           navigate('/my-templates');
           break;
@@ -71,34 +63,16 @@ const ProfileMenu = ({ onOpenSettings }: ProfileMenuProps) => {
           navigate('/my-prompts');
           break;
           
-        case 'analytics':
-          toast({
-            title: "📊 Analytics",
-            description: "Usage analytics coming soon!",
-          });
-          break;
-          
-        case 'billing':
-          toast({
-            title: "💳 Billing",
-            description: "Billing management coming soon!",
-          });
-          break;
-          
         case 'gemini-api':
           setIsGeminiDialogOpen(true);
-          break;
-          
-        case 'help':
-          window.open('https://docs.echoprompt.com', '_blank');
           break;
           
         case 'logout':
           logout();
           navigate('/login');
           toast({
-            title: "👋 Logged Out",
-            description: "You have been successfully logged out.",
+            title: "Logged out",
+            description: "You have been logged out.",
           });
           break;
           
@@ -138,12 +112,12 @@ const ProfileMenu = ({ onOpenSettings }: ProfileMenuProps) => {
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="sm" className="hover-glow relative">
           <Avatar className="w-8 h-8">
-            <AvatarImage src={mockUser.avatar} />
+            <AvatarImage src={profile.avatar} />
             <AvatarFallback className="text-xs font-semibold bg-gradient-primary text-primary-foreground">
-              {mockUser.initials}
+              {profile.initials}
             </AvatarFallback>
           </Avatar>
-          {mockUser.plan === "Pro" && (
+          {isPro && (
             <Crown className="w-3 h-3 absolute -top-1 -right-1 text-yellow-500" />
           )}
         </Button>
@@ -155,41 +129,37 @@ const ProfileMenu = ({ onOpenSettings }: ProfileMenuProps) => {
           <div className="flex flex-col space-y-2">
             <div className="flex items-center space-x-3">
               <Avatar className="w-10 h-10">
-                <AvatarImage src={mockUser.avatar} />
+                <AvatarImage src={profile.avatar} />
                 <AvatarFallback className="text-sm font-semibold bg-gradient-primary text-primary-foreground">
-                  {mockUser.initials}
+                  {profile.initials}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1">
-                <p className="text-sm font-medium leading-none">{mockUser.name}</p>
+                <p className="text-sm font-medium leading-none">{profile.name}</p>
                 <p className="text-xs leading-none text-muted-foreground mt-1">
-                  {mockUser.email}
+                  {profile.email}
                 </p>
                 <div className="flex items-center mt-1">
                   <Badge 
-                    variant={mockUser.plan === "Pro" ? "default" : "secondary"} 
+                    variant={isPro ? "default" : "secondary"} 
                     className="text-xs px-2 py-0"
                   >
-                    {mockUser.plan === "Pro" && <Crown className="w-3 h-3 mr-1" />}
-                    {mockUser.plan}
+                    {isPro && <Crown className="w-3 h-3 mr-1" />}
+                    {profile.plan}
                   </Badge>
                 </div>
               </div>
             </div>
             
             {/* Quick Stats */}
-            <div className="grid grid-cols-3 gap-2 pt-2 border-t border-border/50">
+            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/50">
               <div className="text-center">
-                <p className="text-lg font-bold text-primary">{mockUser.promptsGenerated}</p>
+                <p className="text-lg font-bold text-primary">{profile.promptsGenerated}</p>
                 <p className="text-xs text-muted-foreground">Prompts</p>
               </div>
               <div className="text-center">
-                <p className="text-lg font-bold text-primary">{mockUser.templatesCreated}</p>
+                <p className="text-lg font-bold text-primary">{profile.templatesCreated}</p>
                 <p className="text-xs text-muted-foreground">Templates</p>
-              </div>
-              <div className="text-center">
-                <p className="text-lg font-bold text-primary">{mockUser.totalUsage}</p>
-                <p className="text-xs text-muted-foreground">Tokens</p>
               </div>
             </div>
           </div>
@@ -197,23 +167,13 @@ const ProfileMenu = ({ onOpenSettings }: ProfileMenuProps) => {
         
         <DropdownMenuSeparator />
         
-        {/* Menu Items */}
-        <DropdownMenuItem 
-          onClick={() => handleMenuAction('profile')}
-          disabled={isLoading}
-          className="cursor-pointer"
-        >
-          <User className="w-4 h-4 mr-2" />
-          <span>Profile Settings</span>
-        </DropdownMenuItem>
-        
         <DropdownMenuItem 
           onClick={onOpenSettings}
           disabled={isLoading}
           className="cursor-pointer"
         >
           <Settings className="w-4 h-4 mr-2" />
-          <span>App Settings</span>
+          <span>Settings</span>
         </DropdownMenuItem>
         
         <DropdownMenuItem 
@@ -223,9 +183,6 @@ const ProfileMenu = ({ onOpenSettings }: ProfileMenuProps) => {
         >
           <Key className="w-4 h-4 mr-2" />
           <span>Gemini API Key</span>
-          <Badge variant="outline" className="ml-auto text-xs">
-            AI
-          </Badge>
         </DropdownMenuItem>
         
         <DropdownMenuSeparator />
@@ -237,9 +194,6 @@ const ProfileMenu = ({ onOpenSettings }: ProfileMenuProps) => {
         >
           <FileText className="w-4 h-4 mr-2" />
           <span>My Prompts</span>
-          <Badge variant="outline" className="ml-auto text-xs">
-            {mockUser.promptsGenerated}
-          </Badge>
         </DropdownMenuItem>
         
         <DropdownMenuItem 
@@ -249,60 +203,6 @@ const ProfileMenu = ({ onOpenSettings }: ProfileMenuProps) => {
         >
           <Database className="w-4 h-4 mr-2" />
           <span>My Templates</span>
-          <Badge variant="outline" className="ml-auto text-xs">
-            {mockUser.templatesCreated}
-          </Badge>
-        </DropdownMenuItem>
-        
-        <DropdownMenuItem 
-          onClick={() => handleMenuAction('analytics')}
-          disabled={isLoading}
-          className="cursor-pointer"
-        >
-          <BarChart3 className="w-4 h-4 mr-2" />
-          <span>Analytics</span>
-        </DropdownMenuItem>
-        
-        <DropdownMenuSeparator />
-        
-        {mockUser.plan === "Free" && (
-          <>
-            <DropdownMenuItem 
-              onClick={() => handleMenuAction('billing')}
-              disabled={isLoading}
-              className="cursor-pointer text-primary"
-            >
-              <Zap className="w-4 h-4 mr-2" />
-              <span>Upgrade to Pro</span>
-              <Badge className="ml-auto text-xs bg-gradient-primary">
-                New
-              </Badge>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-          </>
-        )}
-        
-        {mockUser.plan === "Pro" && (
-          <>
-            <DropdownMenuItem 
-              onClick={() => handleMenuAction('billing')}
-              disabled={isLoading}
-              className="cursor-pointer"
-            >
-              <CreditCard className="w-4 h-4 mr-2" />
-              <span>Billing & Usage</span>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-          </>
-        )}
-        
-        <DropdownMenuItem 
-          onClick={() => handleMenuAction('help')}
-          disabled={isLoading}
-          className="cursor-pointer"
-        >
-          <HelpCircle className="w-4 h-4 mr-2" />
-          <span>Help & Support</span>
         </DropdownMenuItem>
         
         <DropdownMenuSeparator />
@@ -313,7 +213,7 @@ const ProfileMenu = ({ onOpenSettings }: ProfileMenuProps) => {
           className="cursor-pointer text-red-600 dark:text-red-400"
         >
           <LogOut className="w-4 h-4 mr-2" />
-          <span>Log Out</span>
+          <span>Log out</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

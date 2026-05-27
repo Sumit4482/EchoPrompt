@@ -3,82 +3,66 @@ import { connectDatabase } from '../config/database';
 import { Template } from '../models/Template';
 import { Prompt } from '../models/Prompt';
 import User from '../models/User';
+import { FieldSuggestion } from '../models/FieldSuggestion';
+import { seedFieldSuggestions } from './seedFieldSuggestions';
+import { getCatalogStats } from '../data/fieldSuggestionCatalog';
 
-// Sample users
-const sampleUsers = [
+// Sample user definitions (passwords will be hashed via pre-save hook)
+const userDefs = [
   {
-    _id: new mongoose.Types.ObjectId(),
     email: 'john@example.com',
     username: 'johnsmith',
     firstName: 'John',
     lastName: 'Smith',
-    password: 'hashedpassword123', // In real app, this would be properly hashed
+    password: 'Password123!',
     preferences: {
-      theme: 'dark',
+      theme: 'dark' as const,
       defaultLanguage: 'English',
       defaultTone: 'Professional',
-      defaultOutputFormat: 'Markdown'
+      defaultOutputFormat: 'Markdown',
     },
-    subscription: {
-      plan: 'pro',
-      status: 'active'
-    },
-    usage: {
-      promptsGenerated: 45,
-      templatesCreated: 8,
-      lastActivity: new Date()
-    }
+    subscription: { plan: 'pro' as const, status: 'active' as const },
+    usage: { promptsGenerated: 45, templatesCreated: 8, lastActivity: new Date() },
   },
   {
-    _id: new mongoose.Types.ObjectId(),
     email: 'sarah@example.com',
     username: 'sarahdev',
     firstName: 'Sarah',
     lastName: 'Developer',
-    password: 'hashedpassword456',
+    password: 'Password456!',
     preferences: {
-      theme: 'light',
+      theme: 'light' as const,
       defaultLanguage: 'English',
       defaultTone: 'Casual',
-      defaultOutputFormat: 'Plain Text'
+      defaultOutputFormat: 'Plain Text',
     },
-    subscription: {
-      plan: 'free',
-      status: 'active'
-    },
-    usage: {
-      promptsGenerated: 23,
-      templatesCreated: 5,
-      lastActivity: new Date()
-    }
+    subscription: { plan: 'free' as const, status: 'active' as const },
+    usage: { promptsGenerated: 23, templatesCreated: 5, lastActivity: new Date() },
   },
   {
-    _id: new mongoose.Types.ObjectId(),
     email: 'mike@example.com',
     username: 'mikewriter',
     firstName: 'Mike',
     lastName: 'Writer',
-    password: 'hashedpassword789',
+    password: 'Password789!',
     preferences: {
-      theme: 'dark',
+      theme: 'dark' as const,
       defaultLanguage: 'English',
       defaultTone: 'Creative',
-      defaultOutputFormat: 'Markdown'
+      defaultOutputFormat: 'Markdown',
     },
-    subscription: {
-      plan: 'enterprise',
-      status: 'active'
-    },
-    usage: {
-      promptsGenerated: 67,
-      templatesCreated: 12,
-      lastActivity: new Date()
-    }
-  }
+    subscription: { plan: 'enterprise' as const, status: 'active' as const },
+    usage: { promptsGenerated: 67, templatesCreated: 12, lastActivity: new Date() },
+  },
 ];
 
-// Sample templates
-const sampleTemplates = [
+// Placeholder — populated after users are saved
+const sampleUsers: { _id: mongoose.Types.ObjectId }[] = [];
+
+const placeholder = new mongoose.Types.ObjectId();
+
+// Sample templates (createdBy patched after users are saved)
+const sampleTemplates: any[] = [
   {
     name: 'Blog Post Writer',
     description: 'Create engaging blog posts with SEO optimization and compelling headlines',
@@ -98,7 +82,7 @@ const sampleTemplates = [
     isPublic: true,
     usageCount: 156,
     rating: { average: 4.8, count: 42 },
-    createdBy: sampleUsers[0]._id
+    createdBy: placeholder
   },
   {
     name: 'Social Media Manager',
@@ -118,7 +102,7 @@ const sampleTemplates = [
     isPublic: true,
     usageCount: 203,
     rating: { average: 4.6, count: 67 },
-    createdBy: sampleUsers[1]._id
+    createdBy: placeholder
   },
   {
     name: 'Email Marketing Specialist',
@@ -139,7 +123,7 @@ const sampleTemplates = [
     isPublic: true,
     usageCount: 89,
     rating: { average: 4.9, count: 23 },
-    createdBy: sampleUsers[2]._id
+    createdBy: placeholder
   },
   {
     name: 'Code Review Assistant',
@@ -160,7 +144,7 @@ const sampleTemplates = [
     isPublic: true,
     usageCount: 134,
     rating: { average: 4.7, count: 28 },
-    createdBy: sampleUsers[0]._id
+    createdBy: placeholder
   },
   {
     name: 'API Documentation Guide',
@@ -181,7 +165,7 @@ const sampleTemplates = [
     isPublic: true,
     usageCount: 98,
     rating: { average: 4.9, count: 19 },
-    createdBy: sampleUsers[1]._id
+    createdBy: placeholder
   },
   {
     name: 'UI/UX Design Brief',
@@ -201,12 +185,13 @@ const sampleTemplates = [
     isPublic: false,
     usageCount: 45,
     rating: { average: 4.3, count: 12 },
-    createdBy: sampleUsers[2]._id
+    createdBy: placeholder
   }
 ];
 
-// Sample prompts
-const samplePrompts = [
+// Sample prompts (createdBy patched after users are saved)
+
+const samplePrompts: any[] = [
   {
     content: "You are a Senior UX Designer with 8+ years of experience in creating user-centered digital experiences. Design a comprehensive user onboarding flow for a fintech mobile app that helps users understand complex financial concepts.\n\nContext: Modern fintech startup targeting millennials and Gen Z\nTone: Friendly yet professional\nOutput Format: Detailed wireframes and user journey\n\n--- OPTIMIZATION APPLIED ---\nPlease provide specific examples and actionable recommendations.\nStructure your response with clear sections and visual descriptions.\nInclude accessibility considerations and mobile-first design principles.",
     promptData: {
@@ -233,7 +218,7 @@ const samplePrompts = [
     wordCount: 187,
     characterCount: 1124,
     keywords: ['UX', 'design', 'onboarding', 'fintech', 'mobile', 'user experience'],
-    createdBy: sampleUsers[0]._id
+    createdBy: placeholder
   },
   {
     content: "You are a Data Scientist specializing in machine learning and predictive analytics. Analyze customer churn patterns and create a comprehensive retention strategy for a SaaS platform.\n\nContext: B2B SaaS company with 50,000+ users\nTone: Technical and analytical\nOutput Format: Data analysis report with visualizations\n\nConstraints: Include statistical significance and confidence intervals\nTarget Audience: C-level executives and product managers",
@@ -261,7 +246,7 @@ const samplePrompts = [
     wordCount: 156,
     characterCount: 892,
     keywords: ['data science', 'churn', 'analytics', 'SaaS', 'retention', 'machine learning'],
-    createdBy: sampleUsers[1]._id
+    createdBy: placeholder
   },
   {
     content: "You are a Senior Software Engineer. Create a comprehensive React component for a user profile dashboard that includes avatar upload, personal information editing, and preference settings.\n\nContext: This is for a modern SaaS application\nTone: Professional\nOutput Format: Code with documentation\n\n--- OPTIMIZATION APPLIED ---\nPlease be specific and provide detailed examples where appropriate.\nStructure your response clearly with appropriate headings or sections.\nProvide actionable steps that can be implemented immediately.",
@@ -289,7 +274,7 @@ const samplePrompts = [
     wordCount: 156,
     characterCount: 890,
     keywords: ['React', 'component', 'dashboard', 'profile', 'SaaS'],
-    createdBy: sampleUsers[0]._id
+    createdBy: placeholder
   },
   {
     content: "You are a Marketing Specialist. Create a compelling email marketing campaign for a new AI-powered productivity tool launch.\n\nContext: Targeting small business owners and freelancers\nTone: Friendly\nOutput Format: Email\n\n--- OPTIMIZATION APPLIED ---\nPlease be specific and provide detailed examples where appropriate.\nStructure your response clearly with appropriate headings or sections.\nProvide actionable steps that can be implemented immediately.",
@@ -317,7 +302,7 @@ const samplePrompts = [
     wordCount: 178,
     characterCount: 1024,
     keywords: ['email', 'marketing', 'AI', 'productivity', 'business'],
-    createdBy: sampleUsers[2]._id
+    createdBy: placeholder
   }
 ];
 
@@ -334,11 +319,27 @@ async function seedDatabase() {
     await User.deleteMany({});
     await Template.deleteMany({});
     await Prompt.deleteMany({});
+    await FieldSuggestion.deleteMany({});
     console.log('✅ Existing data cleared');
 
-    // Insert users
+    // Insert users (use save() so the bcrypt pre-save hook runs)
     console.log('👥 Inserting users...');
-    await User.insertMany(sampleUsers);
+    for (const def of userDefs) {
+      const user = new User(def);
+      const saved = await user.save();
+      sampleUsers.push({ _id: saved._id as mongoose.Types.ObjectId });
+    }
+    // Patch createdBy references in templates/prompts now that we have real IDs
+    sampleTemplates[0].createdBy = sampleUsers[0]._id;
+    sampleTemplates[1].createdBy = sampleUsers[1]._id;
+    sampleTemplates[2].createdBy = sampleUsers[2]._id;
+    sampleTemplates[3].createdBy = sampleUsers[0]._id;
+    sampleTemplates[4].createdBy = sampleUsers[1]._id;
+    sampleTemplates[5].createdBy = sampleUsers[2]._id;
+    samplePrompts[0].createdBy = sampleUsers[0]._id;
+    samplePrompts[1].createdBy = sampleUsers[1]._id;
+    samplePrompts[2].createdBy = sampleUsers[0]._id;
+    samplePrompts[3].createdBy = sampleUsers[2]._id;
     console.log(`✅ Inserted ${sampleUsers.length} users`);
 
     // Insert templates
@@ -350,6 +351,11 @@ async function seedDatabase() {
     console.log('📝 Inserting prompts...');
     await Prompt.insertMany(samplePrompts);
     console.log(`✅ Inserted ${samplePrompts.length} prompts`);
+
+    console.log('💡 Seeding field suggestion catalog...');
+    const suggestionCount = await seedFieldSuggestions(false);
+    const catalogStats = getCatalogStats();
+    console.log(`✅ Inserted ${suggestionCount} field suggestions`, catalogStats);
 
     console.log('🎉 Database seeding completed successfully!');
     console.log('\n📊 Summary:');

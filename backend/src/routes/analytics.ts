@@ -1,13 +1,108 @@
 import express from 'express';
-import { query, validationResult } from 'express-validator';
+import { body, query, validationResult } from 'express-validator';
 import { Template } from '../models/Template';
 import { Prompt } from '../models/Prompt';
 import User from '../models/User';
 import Analytics from '../models/Analytics';
 import { authenticate, optionalAuth } from '../middleware/auth';
 import { AuthenticatedRequest, ApiResponse } from '../types';
+import { getFieldSuggestions } from '../utils/suggestionAggregator';
+import { SUGGESTION_FIELDS } from '../constants/suggestionFields';
+import {
+  isSuggestionField,
+  recordFromPromptData,
+  recordSuggestion,
+  recordSuggestions,
+} from '../services/suggestionRecorder';
 
 const router = express.Router();
+
+// @route   GET /api/analytics/suggestions
+// @desc    Popular field values from templates & prompts (for builder autocomplete)
+// @access  Public
+router.get('/suggestions', [
+  query('limit').optional().isInt({ min: 1, max: 250 }).withMessage('Limit must be between 1 and 250'),
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, error: 'Validation failed', details: errors.array() } as ApiResponse);
+    }
+
+    const limit = parseInt((req.query.limit as string) || '150', 10);
+    const data = await getFieldSuggestions(limit);
+
+    res.json({ success: true, data } as ApiResponse);
+  } catch (error) {
+    console.error('Get field suggestions error:', error);
+    res.status(500).json({ success: false, error: 'Server error' } as ApiResponse);
+  }
+});
+
+// @route   POST /api/analytics/suggestions/record
+// @desc    Record suggestion usage (selection or save) — increments FieldSuggestion.weight
+// @access  Public (optional auth)
+router.post('/suggestions/record', optionalAuth, [
+  body('field').optional().isString(),
+  body('value').optional().isString().trim(),
+  body('weight').optional().isInt({ min: 1, max: 20 }),
+  body('items').optional().isArray({ max: 20 }),
+  body('items.*.field').optional().isString(),
+  body('items.*.value').optional().isString().trim(),
+  body('promptData').optional().isObject(),
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        details: errors.array(),
+      } as ApiResponse);
+    }
+
+    const weight = parseInt(String(req.body.weight ?? '1'), 10);
+    let recorded = 0;
+
+    if (req.body.promptData && typeof req.body.promptData === 'object') {
+      recorded = await recordFromPromptData(req.body.promptData, Math.max(weight, 2));
+    } else if (Array.isArray(req.body.items) && req.body.items.length > 0) {
+      const entries = req.body.items
+        .filter(
+          (item: { field?: string; value?: string }) =>
+            item?.field && item?.value && isSuggestionField(item.field)
+        )
+        .map((item: { field: string; value: string }) => ({
+          field: item.field,
+          value: item.value,
+        }));
+      recorded = await recordSuggestions(entries, weight);
+    } else if (req.body.field && req.body.value) {
+      if (!isSuggestionField(req.body.field)) {
+        return res.status(400).json({
+          success: false,
+          error: `Invalid field. Allowed: ${SUGGESTION_FIELDS.join(', ')}`,
+        } as ApiResponse);
+      }
+      const ok = await recordSuggestion(req.body.field, req.body.value, weight);
+      recorded = ok ? 1 : 0;
+    } else {
+      return res.status(400).json({
+        success: false,
+        error: 'Provide field+value, items[], or promptData',
+      } as ApiResponse);
+    }
+
+    res.json({
+      success: true,
+      data: { recorded },
+      message: `Recorded ${recorded} suggestion(s)`,
+    } as ApiResponse);
+  } catch (error) {
+    console.error('Record suggestion error:', error);
+    res.status(500).json({ success: false, error: 'Server error' } as ApiResponse);
+  }
+});
 
 // @route   GET /api/analytics/overview
 // @desc    Get platform overview statistics

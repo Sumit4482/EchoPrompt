@@ -74,147 +74,6 @@ const Library = () => {
   const [selectedPrompt, setSelectedPrompt] = useState<GeneratedPrompt | null>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
 
-  // Mock data for templates
-  const mockTemplates: Template[] = [
-    {
-      _id: "lib-1",
-      name: "Blog Post Writer",
-      description: "Create engaging blog posts with SEO optimization and compelling headlines",
-      promptData: {
-        role: "Content Writer",
-        task: "Write an engaging blog post",
-        context: "SEO-optimized content for website",
-        tone: "Engaging",
-        outputFormat: "Blog Post",
-        constraints: "Include SEO keywords and meta description",
-        audience: "General readers",
-        industry: "Content Marketing",
-        complexity: "Intermediate"
-      },
-      category: "Content Creation",
-      tags: ["blog", "seo", "content", "writing", "marketing"],
-      isPublic: true,
-      usageCount: 156,
-      rating: { average: 4.8, count: 42 },
-      createdAt: new Date("2024-01-01T10:00:00Z"),
-      updatedAt: new Date("2024-01-01T10:00:00Z"),
-      createdBy: { username: "contentpro", _id: "user1" }
-    },
-    {
-      _id: "lib-2",
-      name: "Social Media Manager",
-      description: "Generate compelling social media posts across multiple platforms",
-      promptData: {
-        role: "Social Media Manager",
-        task: "Create social media content",
-        context: "Multi-platform social media campaign",
-        tone: "Casual",
-        outputFormat: "Social Media Posts",
-        audience: "Social media followers",
-        industry: "Social Media Marketing",
-        complexity: "Beginner"
-      },
-      category: "Social Media",
-      tags: ["social", "media", "posts", "engagement", "marketing"],
-      isPublic: true,
-      usageCount: 203,
-      rating: { average: 4.6, count: 67 },
-      createdAt: new Date("2023-12-28T14:30:00Z"),
-      updatedAt: new Date("2023-12-28T14:30:00Z"),
-      createdBy: { username: "socialguru", _id: "user2" }
-    },
-    {
-      _id: "lib-3",
-      name: "Email Marketing Specialist",
-      description: "Craft persuasive email campaigns that convert subscribers into customers",
-      promptData: {
-        role: "Email Marketing Specialist",
-        task: "Create email marketing campaign",
-        context: "Product launch email sequence",
-        tone: "Professional",
-        outputFormat: "Email",
-        constraints: "Include clear CTA and personalization",
-        audience: "Email subscribers",
-        industry: "E-commerce",
-        complexity: "Advanced"
-      },
-      category: "Email Marketing",
-      tags: ["email", "marketing", "conversion", "campaign", "sales"],
-      isPublic: true,
-      usageCount: 89,
-      rating: { average: 4.9, count: 23 },
-      createdAt: new Date("2024-01-05T09:15:00Z"),
-      updatedAt: new Date("2024-01-05T09:15:00Z"),
-      createdBy: { username: "emailexpert", _id: "user3" }
-    }
-  ];
-
-  // Mock data for prompts
-  const mockPrompts: GeneratedPrompt[] = [
-    {
-      _id: "prompt-1",
-      content: "You are a Senior UX Designer with 8+ years of experience in creating user-centered digital experiences. Design a comprehensive user onboarding flow for a fintech mobile app that helps users understand complex financial concepts.\n\nContext: Modern fintech startup targeting millennials and Gen Z\nTone: Friendly yet professional\nOutput Format: Detailed wireframes and user journey\n\n--- OPTIMIZATION APPLIED ---\nPlease provide specific examples and actionable recommendations.\nStructure your response with clear sections and visual descriptions.\nInclude accessibility considerations and mobile-first design principles.",
-      promptData: {
-        role: "Senior UX Designer",
-        task: "Design a comprehensive user onboarding flow",
-        context: "Modern fintech startup targeting millennials and Gen Z",
-        tone: "Friendly yet professional",
-        outputFormat: "Detailed wireframes and user journey"
-      },
-      isPublic: true,
-      tags: ["ux", "design", "onboarding", "fintech", "mobile"],
-      templateId: null,
-      metadata: {
-        version: "1.0.0",
-        generatedAt: new Date("2024-01-12T16:20:00Z").toISOString(),
-        optimized: true,
-        aiEnhanced: true,
-        generationTime: 3200
-      },
-      analytics: {
-        views: 89,
-        copies: 34,
-        exports: 12
-      },
-      wordCount: 187,
-      characterCount: 1124,
-      keywords: ["UX", "design", "onboarding", "fintech", "mobile", "user experience"],
-      createdAt: new Date("2024-01-12T16:20:00Z"),
-      createdBy: { username: "uxmaster", _id: "user4" }
-    },
-    {
-      _id: "prompt-2",
-      content: "You are a Data Scientist specializing in machine learning and predictive analytics. Analyze customer churn patterns and create a comprehensive retention strategy for a SaaS platform.\n\nContext: B2B SaaS company with 50,000+ users\nTone: Technical and analytical\nOutput Format: Data analysis report with visualizations\n\nConstraints: Include statistical significance and confidence intervals\nTarget Audience: C-level executives and product managers",
-      promptData: {
-        role: "Data Scientist",
-        task: "Analyze customer churn patterns and create retention strategy",
-        context: "B2B SaaS company with 50,000+ users",
-        tone: "Technical and analytical",
-        outputFormat: "Data analysis report with visualizations"
-      },
-      isPublic: true,
-      tags: ["data", "analytics", "churn", "saas", "retention"],
-      templateId: null,
-      metadata: {
-        version: "1.0.0",
-        generatedAt: new Date("2024-01-10T11:45:00Z").toISOString(),
-        optimized: false,
-        aiEnhanced: false,
-        generationTime: 2100
-      },
-      analytics: {
-        views: 67,
-        copies: 28,
-        exports: 15
-      },
-      wordCount: 156,
-      characterCount: 892,
-      keywords: ["data science", "churn", "analytics", "SaaS", "retention", "machine learning"],
-      createdAt: new Date("2024-01-10T11:45:00Z"),
-      createdBy: { username: "datawiz", _id: "user5" }
-    }
-  ];
-
   useEffect(() => {
     loadLibraryContent();
   }, []);
@@ -230,48 +89,21 @@ const Library = () => {
   const loadLibraryContent = async () => {
     setIsLoading(true);
     try {
-      console.log('🔄 Loading public library content...');
-      
-      // Load public templates
-      const templatesResponse = await apiService.getPublicTemplates({
-        limit: 50,
-        sort: 'usageCount',
-        order: 'desc'
-      });
-      
-      // Load public prompts
-      const promptsResponse = await apiService.getPublicPrompts({
-        limit: 50,
-        sort: 'views',
-        order: 'desc'
-      });
-      
-      if (templatesResponse.success && templatesResponse.data) {
-        console.log('✅ Public templates loaded:', templatesResponse.data.length);
-        setTemplates(templatesResponse.data);
-      } else {
-        console.warn('⚠️ Templates API failed, using fallback data');
-        setTemplates(mockTemplates);
-      }
-      
-      if (promptsResponse.success && promptsResponse.data) {
-        console.log('✅ Public prompts loaded:', promptsResponse.data.length);
-        setPrompts(promptsResponse.data);
-      } else {
-        console.warn('⚠️ Prompts API failed, using fallback data');
-        setPrompts(mockPrompts);
-      }
-      
+      const [templatesResponse, promptsResponse] = await Promise.all([
+        apiService.getPublicTemplates({ limit: 50, sort: 'usageCount', order: 'desc' }),
+        apiService.getPublicPrompts({ limit: 50, sort: 'views', order: 'desc' }),
+      ]);
+
+      setTemplates(templatesResponse.success && templatesResponse.data ? templatesResponse.data : []);
+      setPrompts(promptsResponse.success && promptsResponse.data ? promptsResponse.data : []);
     } catch (error) {
-      console.error('❌ Error loading library content:', error);
-      // Fallback to mock data
-      setTemplates(mockTemplates);
-      setPrompts(mockPrompts);
-      
+      console.error('Error loading library content:', error);
+      setTemplates([]);
+      setPrompts([]);
       toast({
-        title: "⚠️ Using Demo Data",
-        description: "Connected to demo mode. Library loaded from local storage.",
-        variant: "default",
+        title: "Error",
+        description: "Failed to load library content.",
+        variant: "destructive",
       });
     } finally {
       setIsLoading(false);

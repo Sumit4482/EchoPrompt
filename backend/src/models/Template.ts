@@ -1,4 +1,4 @@
-import mongoose, { Document, Schema } from 'mongoose';
+import mongoose, { Document, Schema, Types } from 'mongoose';
 
 export interface ITemplate extends Document {
   name: string;
@@ -22,7 +22,7 @@ export interface ITemplate extends Document {
   tags?: string[];
   isPublic?: boolean;
   userId?: string;
-  createdBy?: string;
+  createdBy?: Types.ObjectId;
   usageCount: number;
   rating: {
     average: number;
@@ -116,7 +116,7 @@ TemplateSchema.index({ usageCount: -1 });
 TemplateSchema.index({ 'rating.average': -1 });
 
 // Virtual for template popularity score
-TemplateSchema.virtual('popularityScore').get(function() {
+TemplateSchema.virtual('popularityScore').get(function (this: ITemplate) {
   return (this.usageCount * 0.7) + (this.rating.average * this.rating.count * 0.3);
 });
 

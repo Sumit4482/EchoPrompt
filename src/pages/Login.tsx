@@ -4,9 +4,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Zap, Mail, Lock, User, Eye, EyeOff, Chrome, Github } from "lucide-react";
+import { Zap, Mail, Lock, User, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate, Link } from "react-router-dom";
@@ -45,8 +44,8 @@ const Login = () => {
     
     if (!loginForm.password) {
       newErrors.password = "Password is required";
-    } else if (loginForm.password.length < 6) {
-      newErrors.password = "Password must be at least 6 characters";
+    } else if (loginForm.password.length < 8) {
+      newErrors.password = "Password must be at least 8 characters";
     }
 
     setErrors(newErrors);
@@ -70,8 +69,8 @@ const Login = () => {
     
     if (!registerForm.password) {
       newErrors.password = "Password is required";
-    } else if (registerForm.password.length < 6) {
-      newErrors.password = "Password must be at least 6 characters";
+    } else if (registerForm.password.length < 8) {
+      newErrors.password = "Password must be at least 8 characters";
     }
     
     if (!registerForm.confirmPassword) {
@@ -92,8 +91,8 @@ const Login = () => {
     try {
       await login(loginForm.identifier, loginForm.password);
       toast({
-        title: "🎉 Welcome back!",
-        description: "You have been successfully logged in.",
+        title: "Welcome back",
+        description: "You have been logged in.",
       });
       navigate("/");
     } catch (error) {
@@ -120,8 +119,8 @@ const Login = () => {
         lastName: registerForm.lastName,
       });
       toast({
-        title: "🎉 Account Created!",
-        description: "Your account has been created successfully.",
+        title: "Account created",
+        description: "Your account is ready.",
       });
       navigate("/");
     } catch (error) {
@@ -134,69 +133,39 @@ const Login = () => {
     }
   };
 
-  const handleDemoLogin = async () => {
-    try {
-      await login("demo@echoprompt.com", "demo123");
-      toast({
-        title: "🎉 Demo Login Successful!",
-        description: "Welcome to EchoPrompt demo mode.",
-      });
-      navigate("/");
-    } catch (error) {
-      console.error("Demo login error:", error);
-      toast({
-        title: "Demo Login Failed",
-        description: "Please try again or contact support.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleSocialLogin = (provider: string) => {
-    toast({
-      title: "Coming Soon",
-      description: `${provider} login will be available soon!`,
-    });
-  };
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-background/80 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        {/* Logo Section */}
-        <div className="text-center mb-8">
-          <Link to="/" className="inline-flex items-center space-x-3 mb-4">
-            <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-primary">
-              <Zap className="w-7 h-7 text-primary-foreground" />
+    <div className="min-h-screen bg-background flex items-center justify-center p-4 overflow-y-auto">
+      <div className="w-full max-w-md my-4">
+        <div className="text-center mb-4">
+          <Link to="/" className="inline-flex items-center space-x-2 mb-2">
+            <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-primary">
+              <Zap className="w-5 h-5 text-primary-foreground" />
             </div>
-            <div>
-              <h1 className="text-2xl font-bold font-display bg-gradient-primary bg-clip-text text-transparent">
-                EchoPrompt
-              </h1>
-            </div>
+            <h1 className="text-xl font-bold">EchoPrompt</h1>
           </Link>
-          <p className="text-muted-foreground">Welcome back to the AI Prompt Generator</p>
+          <p className="text-sm text-muted-foreground">Sign in or create an account</p>
         </div>
 
-        <Card className="glass-card border-border/30 bg-gradient-to-br from-card/90 to-card/60 backdrop-blur-xl">
-          <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl text-center">Welcome</CardTitle>
-            <CardDescription className="text-center">
+        <Card>
+          <CardHeader className="pb-3 pt-4 space-y-0.5">
+            <CardTitle className="text-lg text-center">Welcome</CardTitle>
+            <CardDescription className="text-center text-xs">
               Sign in to your account or create a new one
             </CardDescription>
           </CardHeader>
           
-          <CardContent>
+          <CardContent className="pt-0 pb-4 px-4">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
+              <TabsList className="grid w-full grid-cols-2 mb-3">
                 <TabsTrigger value="login">Sign In</TabsTrigger>
                 <TabsTrigger value="register">Sign Up</TabsTrigger>
               </TabsList>
               
               {/* Login Tab */}
-              <TabsContent value="login" className="space-y-4">
-                <form onSubmit={handleLogin} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="identifier">Email or Username</Label>
+              <TabsContent value="login" className="space-y-3">
+                <form onSubmit={handleLogin} className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="identifier" className="text-sm">Email or Username</Label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <Input
@@ -214,8 +183,8 @@ const Login = () => {
                     )}
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Password</Label>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="password" className="text-sm">Password</Label>
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <Input
@@ -253,18 +222,18 @@ const Login = () => {
                 </form>
 
                 <div className="text-center">
-                  <Button variant="link" className="text-sm">
+                  <Button variant="link" className="text-xs text-muted-foreground h-auto p-0">
                     Forgot your password?
                   </Button>
                 </div>
               </TabsContent>
 
               {/* Register Tab */}
-              <TabsContent value="register" className="space-y-4">
-                <form onSubmit={handleRegister} className="space-y-4">
+              <TabsContent value="register" className="space-y-3">
+                <form onSubmit={handleRegister} className="space-y-3">
                   <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="firstName">First Name</Label>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="firstName" className="text-sm">First Name</Label>
                       <Input
                         id="firstName"
                         type="text"
@@ -274,8 +243,8 @@ const Login = () => {
                         disabled={isLoading}
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="lastName">Last Name</Label>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="lastName" className="text-sm">Last Name</Label>
                       <Input
                         id="lastName"
                         type="text"
@@ -287,8 +256,8 @@ const Login = () => {
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="email" className="text-sm">Email</Label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <Input
@@ -306,8 +275,8 @@ const Login = () => {
                     )}
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="username">Username</Label>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="username" className="text-sm">Username</Label>
                     <div className="relative">
                       <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <Input
@@ -325,8 +294,8 @@ const Login = () => {
                     )}
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="newPassword">Password</Label>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="newPassword" className="text-sm">Password</Label>
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <Input
@@ -358,8 +327,8 @@ const Login = () => {
                     )}
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="confirmPassword">Confirm Password</Label>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="confirmPassword" className="text-sm">Confirm Password</Label>
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <Input
@@ -384,54 +353,16 @@ const Login = () => {
               </TabsContent>
             </Tabs>
 
-            <div className="mt-6">
-              <Separator className="my-4" />
-              
-              {/* Demo Login */}
-              <Button 
-                variant="outline" 
-                className="w-full mb-3" 
-                onClick={handleDemoLogin}
-                disabled={isLoading}
-              >
-                <Zap className="w-4 h-4 mr-2" />
-                Try Demo Account
-              </Button>
-
-              {/* Social Login */}
-              <div className="space-y-2">
-                <Button 
-                  variant="outline" 
-                  className="w-full" 
-                  onClick={() => handleSocialLogin("Google")}
-                  disabled={isLoading}
-                >
-                  <Chrome className="w-4 h-4 mr-2" />
-                  Continue with Google
-                </Button>
-                
-                <Button 
-                  variant="outline" 
-                  className="w-full" 
-                  onClick={() => handleSocialLogin("GitHub")}
-                  disabled={isLoading}
-                >
-                  <Github className="w-4 h-4 mr-2" />
-                  Continue with GitHub
-                </Button>
-              </div>
-
-              <Alert className="mt-4">
-                <AlertDescription className="text-sm text-center">
-                  By continuing, you agree to our Terms of Service and Privacy Policy.
-                </AlertDescription>
-              </Alert>
-            </div>
+            <Alert className="mt-3 py-2">
+              <AlertDescription className="text-xs text-center">
+                By continuing, you agree to our Terms of Service and Privacy Policy.
+              </AlertDescription>
+            </Alert>
           </CardContent>
         </Card>
 
-        <div className="text-center mt-6">
-          <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">
+        <div className="text-center mt-3">
+          <Link to="/" className="text-xs text-muted-foreground hover:text-foreground">
             ← Back to EchoPrompt
           </Link>
         </div>

@@ -1,148 +1,154 @@
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { ChevronDown, ChevronUp, Sparkles, Save, FolderOpen, Zap, Settings, Bot, FileText, Wand2, HelpCircle } from "lucide-react";
+import { ChevronDown, ChevronUp, Sparkles, Save, Zap, Settings } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiService, PromptData } from "@/services/api";
 import SmartInput from "./SmartInput";
 import TemplateDialog from "./TemplateDialog";
 import KeyboardShortcuts from "./KeyboardShortcuts";
 import { useAI } from "@/contexts/AIContext";
+import { useFieldSuggestions } from "@/hooks/useFieldSuggestions";
+import { trackPromptDataSuggestions } from "@/lib/suggestionFeedback";
+import { BuilderSuggestionField } from "@/constants/builderSuggestions";
+import {
+  PROMPT_DEFAULTS_UPDATED,
+  readPromptDefaults,
+  withPromptDefaults,
+  type PromptDefaults,
+} from "@/lib/promptDefaults";
 
-// Remove local interface since we're importing from API service
+const EMPTY_PROMPT_DATA: PromptData = {
+  role: "",
+  task: "",
+  context: "",
+  tone: "",
+  outputFormat: "",
+  constraints: "",
+  responseLength: "",
+  audience: "",
+  industry: "",
+  mood: "",
+  language: "",
+  complexity: "",
+  customVariables: "",
+};
 
-// Move suggestion arrays outside component to prevent recreation on every render
-const outputFormatOptions = [
-  "Markdown", "Plain Text", "JSON", "Bullet Points", "Table", 
-  "Code", "Essay", "Email", "Report"
-];
-
-const roleOptions = [
-  "Software Engineer", "Technical Writer", "Data Scientist", 
-  "Product Manager", "Teacher/Educator", "Cybersecurity Expert", 
-  "Marketing Specialist", "Content Creator", "UX Designer", "DevOps Engineer",
-  "AI Researcher", "Business Analyst", "Project Manager", "Consultant"
-];
-
-const responseLengthOptions = [
-  "Brief (1-2 sentences)", "Short (1 paragraph)", "Medium (2-3 paragraphs)", 
-  "Long (4+ paragraphs)", "Comprehensive (Multiple sections)", "Custom length"
-];
-
-const audienceOptions = [
-  "Beginners", "Intermediate users", "Experts", "CEOs/Executives", 
-  "Children", "Teenagers", "Developers", "General public", "Students", "Teachers"
-];
-
-const industryOptions = [
-  "Technology", "Healthcare", "Finance", "Education", "Marketing", 
-  "E-commerce", "Gaming", "Real Estate", "Legal", "Manufacturing", "Retail"
-];
-
-const moodOptions = [
-  "Professional", "Calm", "Urgent", "Inspirational", "Empathetic", 
-  "Friendly", "Authoritative", "Conversational", "Formal", "Casual"
-];
-
-const taskSuggestions = [
-  "Write a comprehensive guide", "Analyze and summarize", "Create a step-by-step tutorial",
-  "Generate creative content", "Solve a technical problem", "Provide recommendations",
-  "Explain complex concepts", "Review and critique", "Plan and strategize", "Debug and troubleshoot"
-];
-
-const contextSuggestions = [
-  "For a beginner audience", "In a professional setting", "For educational purposes",
-  "With practical examples", "Using simple language", "With technical details",
-  "For immediate implementation", "With best practices", "Including common pitfalls", "With real-world scenarios"
-];
-
-const toneOptions = [
-  "Professional", "Casual", "Friendly", "Formal", "Creative", 
-  "Technical", "Conversational", "Authoritative", "Enthusiastic"
-];
-
-const languageOptions = [
-  "English", "Spanish", "French", "German", "Italian", "Portuguese", 
-  "Chinese", "Japanese", "Korean", "Russian", "Arabic"
-];
-
-const complexityOptions = [
-  "Basic/Simple", "Intermediate", "Advanced", "Expert level", "Technical", "Non-technical"
-];
-
-const constraintSuggestions = [
-  "Use simple language only",
-  "Include specific examples",
-  "Avoid technical jargon",
-  "Keep under 500 words",
-  "Include actionable steps",
-  "Use bullet points for clarity"
-];
+function buildPromptText(data: PromptData): string {
+  let prompt = "";
+  if (data.role) prompt += `You are a ${data.role}. `;
+  if (data.task) prompt += `${data.task}`;
+  if (data.context) prompt += `\n\nContext: ${data.context}`;
+  if (data.tone) prompt += `\n\nTone: ${data.tone}`;
+  if (data.outputFormat) prompt += `\n\nOutput Format: ${data.outputFormat}`;
+  if (data.constraints) prompt += `\n\nConstraints: ${data.constraints}`;
+  if (data.responseLength) prompt += `\n\nResponse Length: ${data.responseLength}`;
+  if (data.audience) prompt += `\n\nTarget Audience: ${data.audience}`;
+  if (data.industry) prompt += `\n\nIndustry Context: ${data.industry}`;
+  if (data.mood) prompt += `\n\nMood/Emotion: ${data.mood}`;
+  if (data.language) prompt += `\n\nLanguage: ${data.language}`;
+  if (data.complexity) prompt += `\n\nComplexity Level: ${data.complexity}`;
+  if (data.customVariables) prompt += `\n\nCustom Variables: ${data.customVariables}`;
+  return prompt;
+}
 
 interface PromptBuilderProps {
+  currentPrompt: string;
   onPromptChange: (prompt: string) => void;
   templateData?: PromptData;
   onPromptSaved?: () => void;
+  onReset?: () => void;
 }
 
-const PromptBuilder = ({ onPromptChange, templateData, onPromptSaved }: PromptBuilderProps) => {
+const PromptBuilder = ({
+  currentPrompt,
+  onPromptChange,
+  templateData,
+  onPromptSaved,
+  onReset,
+}: PromptBuilderProps) => {
+  const location = useLocation();
   const { toast } = useToast();
   const { startGeneration, completeGeneration } = useAI();
-  const [promptData, setPromptData] = useState<PromptData>({
-    role: "",
-    task: "",
-    context: "",
-    tone: "",
-    outputFormat: "",
-    constraints: "",
-    responseLength: "",
-    audience: "",
-    industry: "",
-    mood: "",
-    language: "",
-    complexity: "",
-    customVariables: ""
-  });
+  const { suggestions: fieldSuggestions } = useFieldSuggestions();
+  const [promptData, setPromptData] = useState<PromptData>({ ...EMPTY_PROMPT_DATA });
   
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
-  const [templateDialogMode, setTemplateDialogMode] = useState<'save' | 'load'>('save');
+  const [templateDialogMode, setTemplateDialogMode] = useState<"save" | "load">("save");
+  /** When true, field edits won't overwrite AI-generated preview text */
+  const preserveAiPreviewRef = useRef(false);
 
-  // All suggestion arrays moved outside component to prevent recreation
+  const syncPreviewFromFields = useCallback(
+    (data: PromptData) => {
+      preserveAiPreviewRef.current = false;
+      onPromptChange(buildPromptText(data));
+    },
+    [onPromptChange],
+  );
 
-  // Check for template data on component mount
+  // Check for template or prompt data in localStorage on mount (set by Library / MyTemplates)
   useEffect(() => {
-    const selectedTemplate = localStorage.getItem('selectedTemplate');
-    if (selectedTemplate) {
+    const templateRaw = localStorage.getItem('selectedTemplate');
+    const promptRaw = localStorage.getItem('selectedPrompt');
+
+    if (templateRaw) {
       try {
-        const template = JSON.parse(selectedTemplate);
-        console.log('📝 Loading template:', template.name);
-        
-        // Load template data into form
-        setPromptData(template.promptData);
-        
-        // Generate prompt preview
-        generatePromptText(template.promptData);
-        
-        // Clear the template from localStorage after loading
+        const template = JSON.parse(templateRaw);
+        const data = template.promptData ?? template;
+        const merged = { ...EMPTY_PROMPT_DATA, ...data };
+        setPromptData(merged);
+        syncPreviewFromFields(merged);
         localStorage.removeItem('selectedTemplate');
-        
-        console.log('✅ Template loaded successfully');
-      } catch (error) {
-        console.error('❌ Error loading template:', error);
+      } catch {
         localStorage.removeItem('selectedTemplate');
       }
+    } else if (promptRaw) {
+      // "Use Prompt" from Library — pre-fill builder with the prompt's data
+      try {
+        const prompt = JSON.parse(promptRaw);
+        const data: PromptData = { ...EMPTY_PROMPT_DATA, ...(prompt.promptData ?? {}) };
+        setPromptData(data);
+        if (prompt.content?.trim()) {
+          preserveAiPreviewRef.current = true;
+          onPromptChange(prompt.content);
+        } else {
+          syncPreviewFromFields(data);
+        }
+        localStorage.removeItem('selectedPrompt');
+      } catch {
+        localStorage.removeItem('selectedPrompt');
+      }
     }
+  }, [location.pathname, location.search, onPromptChange, syncPreviewFromFields]);
+
+  useEffect(() => {
+    setPromptData((prev) =>
+      prev.task || prev.tone || prev.outputFormat ? prev : withPromptDefaults(prev),
+    );
+  }, []);
+
+  // Apply new defaults immediately when settings are saved
+  useEffect(() => {
+    const onDefaultsUpdated = (event: Event) => {
+      const defaults = (event as CustomEvent<PromptDefaults>).detail ?? readPromptDefaults();
+      setPromptData((prev) => ({
+        ...prev,
+        tone: defaults.defaultTone,
+        outputFormat: defaults.defaultOutputFormat,
+      }));
+    };
+
+    window.addEventListener(PROMPT_DEFAULTS_UPDATED, onDefaultsUpdated);
+    return () => window.removeEventListener(PROMPT_DEFAULTS_UPDATED, onDefaultsUpdated);
   }, []);
 
   // Load template data when provided as prop
@@ -166,18 +172,20 @@ const PromptBuilder = ({ onPromptChange, templateData, onPromptSaved }: PromptBu
         customVariables: templateData.customVariables || ""
       };
       setPromptData(safeTemplateData);
-      generatePromptText(safeTemplateData);
+      syncPreviewFromFields(safeTemplateData);
     }
-  }, [templateData]);
+  }, [templateData, syncPreviewFromFields]);
 
   const updatePromptData = useCallback((field: keyof PromptData, value: string) => {
-    setPromptData(prev => ({ ...prev, [field]: value }));
+    preserveAiPreviewRef.current = false;
+    setPromptData((prev) => ({ ...prev, [field]: value }));
   }, []);
 
-  // Generate prompt text whenever promptData changes
+  // Rebuild preview from fields when builder inputs change (not after AI generate)
   useEffect(() => {
-    generatePromptText(promptData);
-  }, [promptData]);
+    if (preserveAiPreviewRef.current) return;
+    onPromptChange(buildPromptText(promptData));
+  }, [promptData, onPromptChange]);
 
 
 
@@ -196,60 +204,6 @@ const PromptBuilder = ({ onPromptChange, templateData, onPromptSaved }: PromptBu
   const handleComplexityChange = useCallback((value: string) => updatePromptData("complexity", value), [updatePromptData]);
   const handleCustomVariablesChange = useCallback((value: string) => updatePromptData("customVariables", value), [updatePromptData]);
 
-  const generatePromptText = (data: PromptData) => {
-    // Simple local generation for immediate preview
-    let prompt = "";
-    
-    if (data.role) {
-      prompt += `You are a ${data.role}. `;
-    }
-    
-    if (data.task) {
-      prompt += `${data.task}`;
-    }
-    
-    if (data.context) {
-      prompt += `\n\nContext: ${data.context}`;
-    }
-    
-    if (data.tone) {
-      prompt += `\n\nTone: ${data.tone}`;
-    }
-    
-    if (data.outputFormat) {
-      prompt += `\n\nOutput Format: ${data.outputFormat}`;
-    }
-
-    // Advanced fields
-    if (data.constraints) {
-      prompt += `\n\nConstraints: ${data.constraints}`;
-    }
-    if (data.responseLength) {
-      prompt += `\n\nResponse Length: ${data.responseLength}`;
-    }
-    if (data.audience) {
-      prompt += `\n\nTarget Audience: ${data.audience}`;
-    }
-    if (data.industry) {
-      prompt += `\n\nIndustry Context: ${data.industry}`;
-    }
-    if (data.mood) {
-      prompt += `\n\nMood/Emotion: ${data.mood}`;
-    }
-    if (data.language) {
-      prompt += `\n\nLanguage: ${data.language}`;
-    }
-    if (data.complexity) {
-      prompt += `\n\nComplexity Level: ${data.complexity}`;
-    }
-    if (data.customVariables) {
-      prompt += `\n\nCustom Variables: ${data.customVariables}`;
-    }
-    
-    onPromptChange(prompt);
-    return prompt;
-  };
-
   const handleGenerateWithAI = async () => {
     if (!promptData.task) {
       toast({
@@ -266,15 +220,17 @@ const PromptBuilder = ({ onPromptChange, templateData, onPromptSaved }: PromptBu
     try {
       const response = await apiService.generatePrompt(promptData, true);
       if (response.success && response.data) {
+        preserveAiPreviewRef.current = true;
         onPromptChange(response.data.prompt.content);
-        const aiMessage = response.message?.includes('🤖 with Gemini AI') ? 'with Gemini AI' : 'with AI enhancement';
         const isAISuccess = response.data.prompt.metadata?.aiEnhanced || false;
         
         completeGeneration(isAISuccess);
         
         toast({
-          title: isAISuccess ? "🤖 AI Success!" : "⚠️ Fallback Mode",
-          description: `Generated optimized prompt ${aiMessage} (${response.data.metadata.wordCount} words)`,
+          title: isAISuccess ? "Prompt ready" : "Fallback mode",
+          description: isAISuccess
+            ? `Focused prompt generated (${response.data.metadata.wordCount} words).`
+            : `Used local template — check your Gemini API key.`,
           variant: isAISuccess ? "default" : "destructive",
         });
       } else {
@@ -305,49 +261,33 @@ const PromptBuilder = ({ onPromptChange, templateData, onPromptSaved }: PromptBu
 
     setIsSaving(true);
     try {
-      console.log('💾 Saving prompt:', promptData);
-      
-      const currentPrompt = generatePromptText(promptData);
-      console.log('💾 Generated prompt content:', currentPrompt);
-      console.log('💾 Content type:', typeof currentPrompt);
-      
+      const contentToSave =
+        currentPrompt.trim() || buildPromptText(promptData);
+
       const response = await apiService.savePrompt({
-        content: currentPrompt,
+        content: contentToSave,
         promptData: promptData,
-        isPublic: false, // Default to private
+        isPublic: false,
         tags: [promptData.role, promptData.industry, promptData.outputFormat].filter(Boolean)
       });
       
       if (response.success) {
-        console.log('✅ Prompt saved successfully');
-        
+        trackPromptDataSuggestions(promptData);
         toast({
-          title: "💾 Prompt Saved!",
-          description: "Your prompt has been saved to My Prompts",
-          duration: 4000,
+          title: "Prompt Saved",
+          description: "Saved to My Prompts.",
         });
-        
-        // Trigger community hub refresh
-        if (onPromptSaved) {
-          onPromptSaved();
-        }
+        if (onPromptSaved) onPromptSaved();
       } else {
         throw new Error(response.error || 'Save failed');
       }
     } catch (error) {
       console.error('❌ Save failed:', error);
-      
-      // For demo purposes, show success anyway
       toast({
-        title: "💾 Prompt Saved!",
-        description: "Your prompt has been saved (demo mode)",
-        duration: 4000,
+        title: "Save Failed",
+        description: error instanceof Error ? error.message : "Please sign in to save prompts.",
+        variant: "destructive",
       });
-      
-      // Trigger community hub refresh even in demo mode
-      if (onPromptSaved) {
-        onPromptSaved();
-      }
     } finally {
       setIsSaving(false);
     }
@@ -362,12 +302,12 @@ const PromptBuilder = ({ onPromptChange, templateData, onPromptSaved }: PromptBu
       });
       return;
     }
-    setTemplateDialogMode('save');
+    setTemplateDialogMode("save");
     setTemplateDialogOpen(true);
   };
 
-  const handleLoadTemplate = () => {
-    setTemplateDialogMode('load');
+  const handleOpenLoadTemplate = () => {
+    setTemplateDialogMode("load");
     setTemplateDialogOpen(true);
   };
 
@@ -389,16 +329,15 @@ const PromptBuilder = ({ onPromptChange, templateData, onPromptSaved }: PromptBu
       customVariables: loadedPromptData.customVariables || ""
     };
     setPromptData(safeTemplateData);
-    generatePromptText(safeTemplateData);
+    syncPreviewFromFields(safeTemplateData);
   };
 
-  // Keyboard shortcut handlers
-  const handleFocusTask = () => {
-    // Focus the task input field
-    const taskInput = document.querySelector('input[placeholder*="task"], textarea[placeholder*="task"]') as HTMLElement;
-    if (taskInput) {
-      taskInput.focus();
-    }
+  const handleReset = () => {
+    preserveAiPreviewRef.current = false;
+    setPromptData({ ...EMPTY_PROMPT_DATA });
+    setIsAdvancedOpen(false);
+    onPromptChange("");
+    onReset?.();
   };
 
   return (
@@ -408,120 +347,80 @@ const PromptBuilder = ({ onPromptChange, templateData, onPromptSaved }: PromptBu
         onGeneratePrompt={handleGenerateWithAI}
         onSavePrompt={handleSavePrompt}
         onSaveTemplate={handleSaveTemplate}
-        onLoadTemplate={handleLoadTemplate}
+        onLoadTemplate={handleOpenLoadTemplate}
         onToggleAdvanced={() => setIsAdvancedOpen(!isAdvancedOpen)}
-        onFocusTask={handleFocusTask}
       />
       
-      <div className="flex-1 overflow-y-auto p-6 space-y-6">
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
         {/* Basic Fields */}
-        <Card className="glass-card border-border/30 bg-gradient-to-br from-card/90 to-card/60 backdrop-blur-xl">
-          <CardHeader className="pb-4">
+        <Card className="border-border/40">
+          <CardHeader className="pb-3 pt-4 px-4">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-lg font-display flex items-center">
-                <Zap className="w-5 h-5 mr-2 text-primary" />
+              <CardTitle className="text-sm font-medium flex items-center gap-1.5">
+                <Zap className="w-3.5 h-3.5 text-primary" />
                 Essential Fields
               </CardTitle>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    console.log('🔮 Clearing non-task fields');
-                    setPromptData(prev => ({
-                      ...prev,
-                      role: "",
-                      tone: "",
-                      outputFormat: "",
-                      context: "",
-                      audience: "",
-                      industry: ""
-                    }));
-                  }}
-                  className="h-6 text-xs"
-                >
-                  Reset
-                </Button>
-              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleReset}
+                className="h-6 text-xs text-muted-foreground"
+              >
+                Reset
+              </Button>
+            </div>
           </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Task */}
-            <div className="space-y-3">
-              <Label className="text-sm font-medium flex items-center">
-                Task 
-                <Badge variant="outline" className="ml-2 text-xs border-primary/30 text-primary/80">
-                  What should it do?
-                </Badge>
-              </Label>
+          <CardContent className="px-4 pb-4 space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Task</Label>
               <SmartInput
                 value={promptData.task}
                 onChange={handleTaskChange}
                 placeholder="Describe the specific task you want the AI to perform..."
-                suggestions={taskSuggestions}
+                suggestions={fieldSuggestions.task}
+                suggestionField="task"
                 multiline
               />
             </div>
-
-            {/* Role */}
-            <div className="space-y-3">
-              <Label className="text-sm font-medium flex items-center">
-                Role 
-                <Badge variant="outline" className="ml-2 text-xs border-primary/30 text-primary/80">
-                  Who is the AI?
-                </Badge>
-              </Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Role</Label>
               <SmartInput
                 value={promptData.role}
                 onChange={handleRoleChange}
-                placeholder="e.g., Software Engineer, Marketing Expert..."
-                suggestions={roleOptions}
+                placeholder="e.g., Software Engineer, Software Architect..."
+                suggestions={fieldSuggestions.role}
+                suggestionField="role"
               />
             </div>
-
-            {/* Context */}
-            <div className="space-y-3">
-              <Label className="text-sm font-medium flex items-center">
-                Context 
-                <Badge variant="outline" className="ml-2 text-xs border-primary/30 text-primary/80">
-                  Background info
-                </Badge>
-              </Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Context</Label>
               <SmartInput
                 value={promptData.context}
                 onChange={handleContextChange}
-                placeholder="Provide any background information or constraints..."
+                placeholder="Background information or constraints..."
+                suggestions={fieldSuggestions.context}
+                suggestionField="context"
                 multiline
               />
             </div>
-
-            {/* Tone */}
-            <div className="space-y-3">
-              <Label className="text-sm font-medium flex items-center">
-                Tone/Style 
-                <Badge variant="outline" className="ml-2 text-xs border-primary/30 text-primary/80">
-                  How should it sound?
-                </Badge>
-              </Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Tone</Label>
               <SmartInput
                 value={promptData.tone}
                 onChange={handleToneChange}
-                placeholder="Select or type a tone..."
-                suggestions={toneOptions}
+                placeholder="e.g., Professional, Casual, Friendly..."
+                suggestions={fieldSuggestions.tone}
+                suggestionField="tone"
               />
             </div>
-
-            {/* Output Format */}
-            <div className="space-y-3">
-              <Label className="text-sm font-medium flex items-center">
-                Output Format 
-                <Badge variant="outline" className="ml-2 text-xs border-primary/30 text-primary/80">
-                  Response structure
-                </Badge>
-              </Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Output Format</Label>
               <SmartInput
                 value={promptData.outputFormat}
                 onChange={handleOutputFormatChange}
-                placeholder="Select or type a format..."
-                suggestions={outputFormatOptions}
+                placeholder="e.g., Markdown, JSON, Bullet Points..."
+                suggestions={fieldSuggestions.outputFormat}
+                suggestionField="outputFormat"
               />
             </div>
           </CardContent>
@@ -531,285 +430,84 @@ const PromptBuilder = ({ onPromptChange, templateData, onPromptSaved }: PromptBu
         <Button
           variant="ghost"
           onClick={() => setIsAdvancedOpen(!isAdvancedOpen)}
-          className="w-full justify-between text-muted-foreground hover:text-foreground transition-all duration-300 p-4 rounded-xl border border-border/30 hover:border-primary/40 hover:bg-accent/20"
+          className="w-full justify-between h-9 text-xs text-muted-foreground hover:text-foreground border border-border/30 hover:border-border/60 rounded-lg px-3"
         >
-          <span className="flex items-center font-medium">
-            <Settings className="w-4 h-4 mr-2" />
+          <span className="flex items-center gap-1.5">
+            <Settings className="w-3.5 h-3.5" />
             Advanced Options
           </span>
-          {isAdvancedOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          {isAdvancedOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
         </Button>
 
         {/* Advanced Fields */}
         {isAdvancedOpen && (
-          <Card className="glass-card border-border/30 bg-gradient-to-br from-secondary/10 to-secondary/5 backdrop-blur-xl animate-fade-in">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-lg font-display flex items-center">
-                <Settings className="w-5 h-5 mr-2 text-secondary-foreground" />
+          <Card className="border-border/40 animate-slide-up">
+            <CardHeader className="pb-3 pt-4 px-4">
+              <CardTitle className="text-sm font-medium flex items-center gap-1.5">
+                <Settings className="w-3.5 h-3.5" />
                 Advanced Configuration
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Constraints */}
-              <div className="space-y-3">
-                <Label className="text-sm font-medium flex items-center">
-                  Constraints 
-                  <Badge variant="outline" className="ml-2 text-xs border-secondary/30 text-secondary-foreground/80">
-                    Limitations & rules
-                  </Badge>
-                </Label>
-                <SmartInput
-                  value={promptData.constraints}
-                  onChange={handleConstraintsChange}
-                  placeholder="e.g., Use simple language, Include examples..."
-                  suggestions={constraintSuggestions}
-                  multiline
-                />
-              </div>
-
-              {/* Response Length */}
-              <div className="space-y-3">
-                <Label className="text-sm font-medium flex items-center">
-                  Response Length 
-                  <Badge variant="outline" className="ml-2 text-xs border-secondary/30 text-secondary-foreground/80">
-                    Output size
-                  </Badge>
-                </Label>
-                <SmartInput
-                  value={promptData.responseLength}
-                  onChange={handleResponseLengthChange}
-                  placeholder="Select or specify length..."
-                  suggestions={responseLengthOptions}
-                />
-              </div>
-
-              {/* Audience */}
-              <div className="space-y-3">
-                <Label className="text-sm font-medium flex items-center">
-                  Target Audience 
-                  <Badge variant="outline" className="ml-2 text-xs border-secondary/30 text-secondary-foreground/80">
-                    Who will read this?
-                  </Badge>
-                </Label>
-                <SmartInput
-                  value={promptData.audience}
-                  onChange={handleAudienceChange}
-                  placeholder="e.g., Beginners, Experts, CEOs..."
-                  suggestions={audienceOptions}
-                />
-              </div>
-
-              {/* Industry */}
-              <div className="space-y-3">
-                <Label className="text-sm font-medium flex items-center">
-                  Industry/Domain 
-                  <Badge variant="outline" className="ml-2 text-xs border-secondary/30 text-secondary-foreground/80">
-                    Context area
-                  </Badge>
-                </Label>
-                <SmartInput
-                  value={promptData.industry}
-                  onChange={handleIndustryChange}
-                  placeholder="e.g., Technology, Healthcare, Finance..."
-                  suggestions={industryOptions}
-                />
-              </div>
-
-              {/* Mood */}
-              <div className="space-y-3">
-                <Label className="text-sm font-medium flex items-center">
-                  Mood/Emotion 
-                  <Badge variant="outline" className="ml-2 text-xs border-secondary/30 text-secondary-foreground/80">
-                    Emotional tone
-                  </Badge>
-                </Label>
-                <SmartInput
-                  value={promptData.mood}
-                  onChange={handleMoodChange}
-                  placeholder="e.g., Calm, Urgent, Inspirational..."
-                  suggestions={moodOptions}
-                />
-              </div>
-
-              {/* Language */}
-              <div className="space-y-3">
-                <Label className="text-sm font-medium flex items-center">
-                  Language 
-                  <Badge variant="outline" className="ml-2 text-xs border-secondary/30 text-secondary-foreground/80">
-                    Output language
-                  </Badge>
-                </Label>
-                <SmartInput
-                  value={promptData.language}
-                  onChange={handleLanguageChange}
-                  placeholder="e.g., English, Spanish, French..."
-                  suggestions={languageOptions}
-                />
-              </div>
-
-              {/* Complexity */}
-              <div className="space-y-3">
-                <Label className="text-sm font-medium flex items-center">
-                  Complexity Level 
-                  <Badge variant="outline" className="ml-2 text-xs border-secondary/30 text-secondary-foreground/80">
-                    Technical depth
-                  </Badge>
-                </Label>
-                <SmartInput
-                  value={promptData.complexity}
-                  onChange={handleComplexityChange}
-                  placeholder="e.g., Basic, Advanced, Expert..."
-                  suggestions={complexityOptions}
-                />
-              </div>
-
-              {/* Custom Variables */}
-              <div className="space-y-3">
-                <Label className="text-sm font-medium flex items-center">
-                  Custom Variables 
-                  <Badge variant="outline" className="ml-2 text-xs border-secondary/30 text-secondary-foreground/80">
-                    Dynamic placeholders
-                  </Badge>
-                </Label>
-                <SmartInput
-                  value={promptData.customVariables}
-                  onChange={handleCustomVariablesChange}
-                  placeholder="e.g., company_name: Acme Corp, version: 2.0..."
-                  multiline
-                />
-              </div>
+            <CardContent className="px-4 pb-4 space-y-4">
+              {([
+                { label: "Constraints", field: "constraints" as BuilderSuggestionField, value: promptData.constraints, onChange: handleConstraintsChange, placeholder: "e.g., TypeScript strict, Include unit tests...", suggestions: fieldSuggestions.constraints, multiline: true },
+                { label: "Response Length", field: "responseLength" as BuilderSuggestionField, value: promptData.responseLength, onChange: handleResponseLengthChange, placeholder: "Select or specify length...", suggestions: fieldSuggestions.responseLength },
+                { label: "Target Audience", field: "audience" as BuilderSuggestionField, value: promptData.audience, onChange: handleAudienceChange, placeholder: "e.g., Senior engineers, QA team...", suggestions: fieldSuggestions.audience },
+                { label: "Industry", field: "industry" as BuilderSuggestionField, value: promptData.industry, onChange: handleIndustryChange, placeholder: "e.g., B2B SaaS, FinTech...", suggestions: fieldSuggestions.industry },
+                { label: "Mood", field: "mood" as BuilderSuggestionField, value: promptData.mood, onChange: handleMoodChange, placeholder: "e.g., Analytical, Urgent (incident)...", suggestions: fieldSuggestions.mood },
+                { label: "Language", field: "language" as BuilderSuggestionField, value: promptData.language, onChange: handleLanguageChange, placeholder: "e.g., TypeScript, Python...", suggestions: fieldSuggestions.language },
+                { label: "Complexity", field: "complexity" as BuilderSuggestionField, value: promptData.complexity, onChange: handleComplexityChange, placeholder: "e.g., Senior engineer, Architecture level...", suggestions: fieldSuggestions.complexity },
+                { label: "Custom Variables", field: undefined, value: promptData.customVariables, onChange: handleCustomVariablesChange, placeholder: "e.g., company_name: Acme Corp...", multiline: true },
+              ]).map(({ label, field, value, onChange, placeholder, suggestions, multiline }) => (
+                <div key={label} className="space-y-1.5">
+                  <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{label}</Label>
+                  <SmartInput value={value} onChange={onChange} placeholder={placeholder} suggestions={suggestions} suggestionField={field} multiline={multiline} />
+                </div>
+              ))}
             </CardContent>
           </Card>
         )}
-
       </div>
 
-      {/* Template Quick Actions */}
-      <div className="p-4 border-t border-border/20 bg-gradient-to-r from-muted/20 to-muted/10">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="h-8 text-xs hover:bg-primary/10 border-primary/30"
-              onClick={() => {
-                setTemplateDialogMode('load');
-                setTemplateDialogOpen(true);
-              }}
-            >
-              <FolderOpen className="w-3 h-3 mr-2" />
-              Load Template
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="h-8 text-xs hover:bg-primary/10 border-primary/30"
-              onClick={() => {
-                setTemplateDialogMode('save');
-                setTemplateDialogOpen(true);
-              }}
-            >
-              <Save className="w-3 h-3 mr-2" />
-              Save Template
-            </Button>
-          </div>
-          <Badge variant="secondary" className="text-xs">
-            Quick Actions
-          </Badge>
-        </div>
-      </div>
-
-      {/* Generate Buttons */}
-      <div className="p-6 border-t border-border/30 bg-gradient-to-br from-background/90 via-background/80 to-background/70 backdrop-blur-sm">
-        <div className="space-y-6">
-          <div className="text-center">
-              <div className="inline-flex items-center space-x-2 mb-3">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 flex items-center justify-center">
-                  <Sparkles className="w-4 h-4 text-white" />
-                </div>
-                <h3 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                  Generate Your Prompt
-                </h3>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                        <HelpCircle className="w-4 h-4 text-muted-foreground" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="max-w-xs">
-                      <div className="space-y-2 text-sm">
-                        <p className="font-semibold">Keyboard Shortcuts:</p>
-                        <div className="space-y-1">
-                          <div className="flex justify-between">
-                            <span>Generate:</span>
-                            <Badge variant="outline" className="text-xs">Ctrl/Cmd + Enter</Badge>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Save:</span>
-                            <Badge variant="outline" className="text-xs">Ctrl/Cmd + S</Badge>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Focus Task:</span>
-                            <Badge variant="outline" className="text-xs">F</Badge>
-                          </div>
-                        </div>
-                      </div>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
-            <p className="text-sm text-muted-foreground mb-6">AI-powered prompt generation with live preview</p>
-          </div>
-          
-          <div className="flex justify-center gap-3">
-            {/* AI Generation Button */}
-            <Button 
-              className="bg-gradient-to-r from-emerald-500 to-blue-600 hover:from-emerald-600 hover:to-blue-700 text-white font-semibold px-6 py-3 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 disabled:hover:scale-100"
-              disabled={!promptData.task || isGenerating}
-              onClick={handleGenerateWithAI}
-            >
-              {isGenerating ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4 mr-2" />
-                  Generate Prompt
-                </>
-              )}
-            </Button>
-
-            {/* Save Prompt Button */}
-            <Button 
-              variant="outline"
-              className="border-primary/30 hover:bg-primary/10 hover:border-primary/50 transition-all duration-300"
-              disabled={!promptData.task || isSaving}
-              onClick={handleSavePrompt}
-            >
-              {isSaving ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary mr-2"></div>
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Save className="w-4 h-4 mr-2" />
-                  Save Prompt
-                </>
-              )}
-            </Button>
-          </div>
-          
-          <div className="text-center">
-            <p className="text-xs text-muted-foreground">
-              💡 <strong>Live Preview:</strong> See your prompt update as you type
-              <br />
-              🤖 <strong>AI Enhancement:</strong> Click Generate Prompt for optimized results
-            </p>
-          </div>
+      {/* Footer Actions */}
+      <div className="shrink-0 px-4 py-3 border-t border-border/20 space-y-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 text-xs text-muted-foreground hover:text-foreground"
+          onClick={handleSaveTemplate}
+        >
+          <Save className="w-3.5 h-3.5 mr-1.5" />
+          Save Template
+        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs flex-1"
+            disabled={!promptData.task || isSaving}
+            onClick={handleSavePrompt}
+          >
+            {isSaving ? (
+              <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-primary mr-1.5" />
+            ) : (
+              <Save className="w-3.5 h-3.5 mr-1.5" />
+            )}
+            Save to My Prompts
+          </Button>
+          <Button
+            size="sm"
+            className="h-8 text-xs flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
+            disabled={!promptData.task || isGenerating}
+            onClick={handleGenerateWithAI}
+          >
+            {isGenerating ? (
+              <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white mr-1.5" />
+            ) : (
+              <Sparkles className="w-3.5 h-3.5 mr-1.5" />
+            )}
+            Generate with AI
+          </Button>
         </div>
       </div>
 

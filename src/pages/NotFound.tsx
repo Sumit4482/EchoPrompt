@@ -1,5 +1,7 @@
-import { useLocation } from "react-router-dom";
+import { useLocation, Link } from "react-router-dom";
 import { useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Zap, ArrowLeft } from "lucide-react";
 
 const NotFound = () => {
   const location = useLocation();
@@ -9,13 +11,26 @@ const NotFound = () => {
   }, [location.pathname]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-100">
-      <div className="text-center">
-        <h1 className="mb-4 text-4xl font-bold">404</h1>
-        <p className="mb-4 text-xl text-gray-600">Oops! Page not found</p>
-        <a href="/" className="text-blue-500 underline hover:text-blue-700">
-          Return to Home
-        </a>
+    <div className="flex min-h-screen items-center justify-center bg-background">
+      <div className="text-center space-y-6 animate-fade-in">
+        <div className="flex justify-center">
+          <div className="flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 border border-border/40">
+            <Zap className="w-8 h-8 text-primary" />
+          </div>
+        </div>
+        <div className="space-y-2">
+          <h1 className="text-6xl font-bold text-foreground">404</h1>
+          <p className="text-lg text-muted-foreground">Page not found</p>
+          <p className="text-sm text-muted-foreground">
+            The page <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{location.pathname}</code> doesn't exist.
+          </p>
+        </div>
+        <Link to="/">
+          <Button variant="outline" className="gap-2">
+            <ArrowLeft className="w-4 h-4" />
+            Back to EchoPrompt
+          </Button>
+        </Link>
       </div>
     </div>
   );
