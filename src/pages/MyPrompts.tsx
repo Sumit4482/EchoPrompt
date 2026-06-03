@@ -204,6 +204,9 @@ const MyPrompts = () => {
 
   const handleUsePrompt = (prompt: GeneratedPrompt) => {
     localStorage.setItem("selectedPrompt", JSON.stringify(prompt));
+    if (prompt._id) {
+      localStorage.setItem("editingPromptId", prompt._id);
+    }
     navigate("/?tab=builder");
     toast({ title: "Prompt loaded", description: "Opened in the builder." });
   };

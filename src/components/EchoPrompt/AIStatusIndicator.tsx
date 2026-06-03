@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Bot, Zap, AlertCircle, CheckCircle, Clock } from "lucide-react";
 import { apiService } from "@/services/api";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface AIStatusIndicatorProps {
   isGenerating?: boolean;
@@ -15,6 +16,7 @@ const AIStatusIndicator = ({
   lastGenerationStatus = null,
   className = "" 
 }: AIStatusIndicatorProps) => {
+  const { user } = useAuth();
   const [analytics, setAnalytics] = useState<{
     successRate: number;
     totalAttempts: number;
@@ -24,6 +26,11 @@ const AIStatusIndicator = ({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!user?.isAdmin) {
+      setLoading(false);
+      return;
+    }
+
     const fetchAnalytics = async () => {
       try {
         const response = await apiService.getAIGenerationAnalytics();
@@ -38,7 +45,7 @@ const AIStatusIndicator = ({
     };
 
     fetchAnalytics();
-  }, []);
+  }, [user?.isAdmin]);
 
   const getStatusIcon = () => {
     if (isGenerating) {

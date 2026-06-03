@@ -6,6 +6,7 @@ export interface IUser extends Document {
   email: string;
   username: string;
   password: string;
+  role: 'user' | 'admin';
   firstName?: string;
   lastName?: string;
   avatar?: string;
@@ -26,6 +27,8 @@ export interface IUser extends Document {
     templatesCreated: number;
     lastActivity: Date;
   };
+  resetPasswordToken?: string;
+  resetPasswordExpires?: Date;
   createdAt: Date;
   updatedAt: Date;
   fullName: string; // virtual field

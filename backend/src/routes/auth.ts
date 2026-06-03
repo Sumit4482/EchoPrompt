@@ -1,9 +1,12 @@
 import express from 'express';
 import { body, validationResult } from 'express-validator';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import User from '../models/User';
 import { authenticate } from '../middleware/auth';
 import { AuthenticatedRequest, ApiResponse } from '../types';
+import { serializeUser } from '../utils/serializeUser';
+import { sendPasswordResetEmail, isEmailConfigured } from '../services/emailService';
 
 const router = express.Router();
 
@@ -80,18 +83,7 @@ router.post('/register', [
     res.status(201).json({
       success: true,
       data: {
-        user: {
-          id: user._id,
-          email: user.email,
-          username: user.username,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          fullName: user.fullName,
-          preferences: user.preferences,
-          subscription: user.subscription,
-          usage: user.usage,
-          createdAt: user.createdAt
-        },
+        user: serializeUser(user),
         token
       },
       message: 'User registered successfully'
@@ -164,18 +156,7 @@ router.post('/login', [
     res.json({
       success: true,
       data: {
-        user: {
-          id: user._id,
-          email: user.email,
-          username: user.username,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          fullName: user.fullName,
-          preferences: user.preferences,
-          subscription: user.subscription,
-          usage: user.usage,
-          createdAt: user.createdAt
-        },
+        user: serializeUser(user),
         token
       },
       message: 'Login successful'
@@ -200,21 +181,7 @@ router.get('/me', authenticate, async (req: AuthenticatedRequest, res) => {
     res.json({
       success: true,
       data: {
-        user: {
-          id: user._id,
-          email: user.email,
-          username: user.username,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          fullName: user.fullName,
-          avatar: user.avatar,
-          isEmailVerified: user.isEmailVerified,
-          preferences: user.preferences,
-          subscription: user.subscription,
-          usage: user.usage,
-          createdAt: user.createdAt,
-          updatedAt: user.updatedAt
-        }
+        user: serializeUser(user),
       }
     } as ApiResponse);
 
@@ -231,6 +198,16 @@ router.get('/me', authenticate, async (req: AuthenticatedRequest, res) => {
 // @desc    Update user profile
 // @access  Private
 router.put('/profile', authenticate, [
+  body('email')
+    .optional()
+    .isEmail()
+    .normalizeEmail()
+    .withMessage('Please provide a valid email'),
+  body('username')
+    .optional()
+    .isLength({ min: 3, max: 30 })
+    .matches(/^[a-zA-Z0-9_-]+$/)
+    .withMessage('Username must be 3-30 characters and contain only letters, numbers, underscores, and hyphens'),
   body('firstName')
     .optional()
     .isLength({ max: 50 })
@@ -239,10 +216,6 @@ router.put('/profile', authenticate, [
     .optional()
     .isLength({ max: 50 })
     .withMessage('Last name cannot exceed 50 characters'),
-  body('preferences.theme')
-    .optional()
-    .isIn(['light', 'dark', 'system'])
-    .withMessage('Theme must be light, dark, or system'),
 ], async (req: AuthenticatedRequest, res) => {
   try {
     // Check for validation errors
@@ -256,14 +229,29 @@ router.put('/profile', authenticate, [
     }
 
     const user = req.user!;
-    const { firstName, lastName, preferences } = req.body;
+    const { email, username, firstName, lastName, preferences } = req.body;
 
-    // Update user fields
+    if (email !== undefined && email !== user.email) {
+      const taken = await User.findOne({ email: email.toLowerCase(), _id: { $ne: user._id } });
+      if (taken) {
+        return res.status(400).json({ success: false, error: 'Email already in use' } as ApiResponse);
+      }
+      user.email = email;
+      user.isEmailVerified = false;
+    }
+
+    if (username !== undefined && username !== user.username) {
+      const taken = await User.findOne({ username, _id: { $ne: user._id } });
+      if (taken) {
+        return res.status(400).json({ success: false, error: 'Username already taken' } as ApiResponse);
+      }
+      user.username = username;
+    }
+
     if (firstName !== undefined) user.firstName = firstName;
     if (lastName !== undefined) user.lastName = lastName;
     
     if (preferences) {
-      if (preferences.theme) user.preferences.theme = preferences.theme;
       if (preferences.defaultLanguage) user.preferences.defaultLanguage = preferences.defaultLanguage;
       if (preferences.defaultTone) user.preferences.defaultTone = preferences.defaultTone;
       if (preferences.defaultOutputFormat) user.preferences.defaultOutputFormat = preferences.defaultOutputFormat;
@@ -274,17 +262,7 @@ router.put('/profile', authenticate, [
     res.json({
       success: true,
       data: {
-        user: {
-          id: user._id,
-          email: user.email,
-          username: user.username,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          fullName: user.fullName,
-          preferences: user.preferences,
-          subscription: user.subscription,
-          usage: user.usage
-        }
+        user: serializeUser(user),
       },
       message: 'Profile updated successfully'
     } as ApiResponse);
@@ -295,6 +273,111 @@ router.put('/profile', authenticate, [
       success: false,
       error: 'Server error'
     } as ApiResponse);
+  }
+});
+
+// @route   POST /api/auth/forgot-password
+// @desc    Request password reset token (email delivery not configured — dev returns token)
+// @access  Public
+router.post('/forgot-password', [
+  body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        details: errors.array(),
+      } as ApiResponse);
+    }
+
+    const { email } = req.body;
+    const user = await User.findOne({ email: email.toLowerCase() });
+
+    if (user) {
+      const resetToken = crypto.randomBytes(32).toString('hex');
+      user.resetPasswordToken = crypto
+        .createHash('sha256')
+        .update(resetToken)
+        .digest('hex');
+      user.resetPasswordExpires = new Date(Date.now() + 60 * 60 * 1000);
+      await user.save();
+
+      let emailed = false;
+      try {
+        emailed = await sendPasswordResetEmail(user.email, resetToken);
+      } catch (mailError) {
+        console.error('Forgot password email error:', mailError);
+      }
+
+      if (process.env.NODE_ENV === 'development' && !emailed) {
+        return res.json({
+          success: true,
+          message: isEmailConfigured()
+            ? 'SMTP is set but sending failed — check server logs and Brevo sender verification. Dev token below.'
+            : 'SMTP not configured — use token below (development only).',
+          data: { resetToken },
+        } as ApiResponse);
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'If an account exists for that email, password reset instructions have been sent.',
+    } as ApiResponse);
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({ success: false, error: 'Server error' } as ApiResponse);
+  }
+});
+
+// @route   POST /api/auth/reset-password
+// @desc    Reset password with token from forgot-password
+// @access  Public
+router.post('/reset-password', [
+  body('token').notEmpty().withMessage('Reset token is required'),
+  body('password')
+    .isLength({ min: 8 })
+    .withMessage('Password must be at least 8 characters long'),
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        details: errors.array(),
+      } as ApiResponse);
+    }
+
+    const { token, password } = req.body;
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+    const user = await User.findOne({
+      resetPasswordToken: hashedToken,
+      resetPasswordExpires: { $gt: new Date() },
+    }).select('+password +resetPasswordToken +resetPasswordExpires');
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid or expired reset token',
+      } as ApiResponse);
+    }
+
+    user.password = password;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save();
+
+    res.json({
+      success: true,
+      message: 'Password reset successfully. You can sign in now.',
+    } as ApiResponse);
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({ success: false, error: 'Server error' } as ApiResponse);
   }
 });
 

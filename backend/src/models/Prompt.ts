@@ -130,10 +130,10 @@ const PromptSchema = new Schema<IPrompt>({
       min: 0
     },
     ratings: [{
-      type: Number,
-      min: 1,
-      max: 5
-    }]
+      userId: { type: Schema.Types.ObjectId, ref: 'User' },
+      rating: { type: Number, min: 1, max: 5, required: true },
+      createdAt: { type: Date, default: Date.now },
+    }],
   },
   wordCount: {
     type: Number,
@@ -171,13 +171,26 @@ PromptSchema.index({ keywords: 1 });
 PromptSchema.index({ isPublic: 1, createdAt: -1 });
 PromptSchema.index({ createdBy: 1, createdAt: -1 });
 
+function ratingValues(ratings: unknown[] | undefined): number[] {
+  if (!ratings?.length) return [];
+  return ratings.map((entry) => {
+    if (typeof entry === 'number') return entry;
+    if (entry && typeof entry === 'object' && 'rating' in entry) {
+      return Number((entry as { rating: number }).rating);
+    }
+    return 0;
+  }).filter((n) => n >= 1 && n <= 5);
+}
+
+PromptSchema.virtual('ratingCount').get(function (this: IPrompt) {
+  return ratingValues(this.analytics?.ratings as unknown[]).length;
+});
+
 // Virtual for average rating
 PromptSchema.virtual('averageRating').get(function (this: IPrompt) {
-  if (!this.analytics?.ratings || this.analytics.ratings.length === 0) {
-    return 0;
-  }
-  const sum = this.analytics.ratings.reduce((acc, rating) => acc + rating, 0);
-  return sum / this.analytics.ratings.length;
+  const values = ratingValues(this.analytics?.ratings as unknown[]);
+  if (values.length === 0) return 0;
+  return values.reduce((acc, rating) => acc + rating, 0) / values.length;
 });
 
 // Virtual for engagement score
@@ -206,7 +219,23 @@ PromptSchema.methods.addRating = function (userId: string, rating: number) {
   if (!this.analytics.ratings) {
     this.analytics.ratings = [];
   }
-  this.analytics.ratings.push(rating);
+  const uid = userId.toString();
+  const normalized = (this.analytics.ratings as unknown[]).filter(
+    (entry) => typeof entry !== 'number',
+  ) as { userId?: { toString(): string }; rating: number; createdAt?: Date }[];
+
+  const existing = normalized.find((entry) => entry.userId?.toString() === uid);
+  if (existing) {
+    existing.rating = rating;
+    existing.createdAt = new Date();
+  } else {
+    normalized.push({
+      userId: userId as unknown as Schema.Types.ObjectId,
+      rating,
+      createdAt: new Date(),
+    });
+  }
+  this.analytics.ratings = normalized as unknown as IPrompt['analytics']['ratings'];
   return this.save();
 };
 

@@ -21,6 +21,10 @@ export type BuilderFieldSuggestions = Record<BuilderSuggestionField, string[]>;
 /** Offline fallback — tech/engineering focused; superseded by API catalog when available */
 export const STATIC_FIELD_SUGGESTIONS: BuilderFieldSuggestions = {
   role: [
+    'Social Media Manager',
+    'Content Writer',
+    'Email Marketing Specialist',
+    'Marketing Specialist',
     'Senior Software Engineer',
     'Software Architect',
     'Full Stack Developer',
@@ -38,6 +42,11 @@ export const STATIC_FIELD_SUGGESTIONS: BuilderFieldSuggestions = {
     'Engineering Manager',
   ],
   task: [
+    'Create social media content',
+    'Write an engaging blog post',
+    'Create email marketing campaign',
+    'Review the following code for best practices and potential issues',
+    'Write comprehensive API documentation',
     'Review pull request for code quality and security',
     'Write unit tests for existing service',
     'Design REST API for new feature',
@@ -59,6 +68,12 @@ export const STATIC_FIELD_SUGGESTIONS: BuilderFieldSuggestions = {
     'Team follows trunk-based development',
   ],
   tone: [
+    'Casual',
+    'Professional',
+    'Engaging',
+    'Friendly',
+    'Creative',
+    'Technical',
     'Technical and precise',
     'RFC-style formal',
     'Peer-review constructive',
@@ -66,6 +81,12 @@ export const STATIC_FIELD_SUGGESTIONS: BuilderFieldSuggestions = {
     'Tutorial explanatory',
   ],
   outputFormat: [
+    'Social Media Posts',
+    'Blog Post',
+    'Email',
+    'Plain Text',
+    'Markdown',
+    'Structured Document',
     'Markdown with code blocks',
     'TypeScript code',
     'OpenAPI 3.0 spec',
@@ -89,6 +110,9 @@ export const STATIC_FIELD_SUGGESTIONS: BuilderFieldSuggestions = {
     'Comprehensive (design doc length)',
   ],
   audience: [
+    'Social media followers',
+    'General readers',
+    'Email subscribers',
     'Senior engineers',
     'Software architects',
     'Backend team',
@@ -99,6 +123,8 @@ export const STATIC_FIELD_SUGGESTIONS: BuilderFieldSuggestions = {
     'Engineering managers',
   ],
   industry: [
+    'Social Media Marketing',
+    'Content Marketing',
     'B2B SaaS',
     'Developer Tools',
     'FinTech',

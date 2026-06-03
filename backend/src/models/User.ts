@@ -44,6 +44,11 @@ const userSchema = new Schema<IUser>({
     type: Boolean,
     default: false,
   },
+  role: {
+    type: String,
+    enum: ['user', 'admin'],
+    default: 'user',
+  },
   preferences: {
     theme: {
       type: String,
@@ -78,6 +83,14 @@ const userSchema = new Schema<IUser>({
       type: Date,
       default: null,
     },
+  },
+  resetPasswordToken: {
+    type: String,
+    select: false,
+  },
+  resetPasswordExpires: {
+    type: Date,
+    select: false,
   },
   usage: {
     promptsGenerated: {

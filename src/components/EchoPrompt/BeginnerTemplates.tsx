@@ -101,9 +101,11 @@ const BeginnerTemplates: React.FC<BeginnerTemplatesProps> = ({ onTemplateSelect 
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-base font-semibold">Templates</h2>
+          <h2 className="text-base font-semibold">Blueprints</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {isLoading ? 'Loading…' : `${total} template${total !== 1 ? 's' : ''} — click to load into builder`}
+            {isLoading
+              ? "Loading…"
+              : `${total} blueprint${total !== 1 ? "s" : ""} — reusable field sets (not finished prompts)`}
           </p>
         </div>
       </div>
@@ -198,7 +200,7 @@ const BeginnerTemplates: React.FC<BeginnerTemplatesProps> = ({ onTemplateSelect 
                     variant="outline"
                     onClick={() => onTemplateSelect(template)}
                   >
-                    Use template
+                    Start from blueprint
                   </Button>
                 </CardContent>
               </Card>

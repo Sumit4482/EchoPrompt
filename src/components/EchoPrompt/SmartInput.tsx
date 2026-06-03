@@ -6,46 +6,19 @@ import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BuilderSuggestionField } from "@/constants/builderSuggestions";
 import { trackSuggestionSelect } from "@/lib/suggestionFeedback";
+import { rankSuggestions } from "@/lib/suggestionRanking";
 
 interface SmartInputProps {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
   suggestions?: string[];
+  /** Task + role text — boosts suggestions when this field is empty or being typed */
+  contextText?: string;
   multiline?: boolean;
   className?: string;
   maxSuggestions?: number;
-  /** When set, records dropdown selection to improve future rankings */
   suggestionField?: BuilderSuggestionField;
-}
-
-function rankSuggestions(suggestions: string[], query: string): string[] {
-  const valid = suggestions.filter((s): s is string => Boolean(s && typeof s === "string"));
-  const q = query.trim().toLowerCase();
-
-  if (!q) return valid;
-
-  return valid
-    .map((suggestion) => {
-      const lower = suggestion.toLowerCase();
-      let score = -1;
-
-      if (lower === q) {
-        score = 1000;
-      } else if (lower.startsWith(q)) {
-        score = 500 + (100 - Math.min(lower.length, 100));
-      } else if (lower.split(/\s+/).some((word) => word.startsWith(q))) {
-        score = 300;
-      } else if (lower.includes(q)) {
-        const idx = lower.indexOf(q);
-        score = 200 - idx;
-      }
-
-      return score >= 0 ? { suggestion, score } : null;
-    })
-    .filter((item): item is { suggestion: string; score: number } => item !== null)
-    .sort((a, b) => b.score - a.score)
-    .map((item) => item.suggestion);
 }
 
 function HighlightMatch({ text, query }: { text: string; query: string }) {
@@ -72,9 +45,10 @@ const SmartInput = ({
   onChange,
   placeholder,
   suggestions = [],
+  contextText = "",
   multiline = false,
   className,
-  maxSuggestions = 8,
+  maxSuggestions = 10,
   suggestionField,
 }: SmartInputProps) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -84,16 +58,35 @@ const SmartInput = ({
   const containerRef = useRef<HTMLDivElement>(null);
 
   const filteredSuggestions = useMemo(
-    () => rankSuggestions(suggestions, value).slice(0, maxSuggestions),
-    [suggestions, value, maxSuggestions]
+    () =>
+      rankSuggestions(suggestions, value, {
+        context: contextText,
+        minScore: value.trim().length >= 2 ? 50 : 0,
+      }).slice(0, maxSuggestions),
+    [suggestions, value, contextText, maxSuggestions],
   );
 
+  const browseWhenEmpty = useMemo(
+    () =>
+      rankSuggestions(suggestions, "", { context: contextText }).slice(0, maxSuggestions),
+    [suggestions, contextText, maxSuggestions],
+  );
+
+  const displayList =
+    value.trim() && filteredSuggestions.length === 0 ? browseWhenEmpty : filteredSuggestions;
+
+  const showNoExactMatch =
+    value.trim().length >= 2 && filteredSuggestions.length === 0 && browseWhenEmpty.length > 0;
+
   const showDropdown =
-    isOpen && isFocused && suggestions.length > 0 && (value.trim() === "" || filteredSuggestions.length > 0);
+    isOpen &&
+    isFocused &&
+    suggestions.length > 0 &&
+    (value.trim() === "" || displayList.length > 0);
 
   useEffect(() => {
     setSelectedIndex(-1);
-  }, [value, filteredSuggestions.length]);
+  }, [value, displayList.length]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -113,11 +106,10 @@ const SmartInput = ({
 
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-      const newValue = e.target.value;
-      onChange(newValue);
+      onChange(e.target.value);
       openSuggestions();
     },
-    [onChange, openSuggestions]
+    [onChange, openSuggestions],
   );
 
   const handleSuggestionSelect = useCallback(
@@ -130,7 +122,7 @@ const SmartInput = ({
       setSelectedIndex(-1);
       inputRef.current?.focus();
     },
-    [onChange, suggestionField]
+    [onChange, suggestionField],
   );
 
   const handleKeyDown = useCallback(
@@ -142,26 +134,26 @@ const SmartInput = ({
           setSelectedIndex(0);
           return;
         }
-        if (filteredSuggestions.length > 0) {
+        if (displayList.length > 0) {
           e.preventDefault();
           setIsOpen(true);
-          setSelectedIndex((prev) => (prev < filteredSuggestions.length - 1 ? prev + 1 : 0));
+          setSelectedIndex((prev) => (prev < displayList.length - 1 ? prev + 1 : 0));
         }
       } else if (e.key === "ArrowUp") {
-        if (filteredSuggestions.length > 0) {
+        if (displayList.length > 0) {
           e.preventDefault();
           setIsOpen(true);
-          setSelectedIndex((prev) => (prev > 0 ? prev - 1 : filteredSuggestions.length - 1));
+          setSelectedIndex((prev) => (prev > 0 ? prev - 1 : displayList.length - 1));
         }
-      } else if (e.key === "Enter" && selectedIndex >= 0 && filteredSuggestions[selectedIndex]) {
+      } else if (e.key === "Enter" && selectedIndex >= 0 && displayList[selectedIndex]) {
         e.preventDefault();
-        handleSuggestionSelect(filteredSuggestions[selectedIndex]);
+        handleSuggestionSelect(displayList[selectedIndex]);
       } else if (e.key === "Escape") {
         setIsOpen(false);
         setSelectedIndex(-1);
       }
     },
-    [filteredSuggestions, handleSuggestionSelect, isOpen, selectedIndex, suggestions.length]
+    [displayList, handleSuggestionSelect, isOpen, selectedIndex, suggestions.length],
   );
 
   const InputComponent = multiline ? Textarea : Input;
@@ -179,7 +171,6 @@ const SmartInput = ({
             openSuggestions();
           }}
           onBlur={() => {
-            // Delay so mousedown on a suggestion still registers
             window.setTimeout(() => {
               if (!containerRef.current?.contains(document.activeElement)) {
                 setIsFocused(false);
@@ -193,7 +184,7 @@ const SmartInput = ({
             "placeholder:text-muted-foreground/60",
             suggestions.length > 0 && "pr-8",
             multiline && "min-h-[80px] resize-none",
-            className
+            className,
           )}
           autoComplete="off"
         />
@@ -212,7 +203,7 @@ const SmartInput = ({
             }}
             className={cn(
               "absolute right-2 h-6 w-6 p-0 text-muted-foreground hover:text-foreground",
-              multiline ? "top-2" : "top-1/2 -translate-y-1/2"
+              multiline ? "top-2" : "top-1/2 -translate-y-1/2",
             )}
           >
             <ChevronDown className={cn("w-3 h-3 transition-transform", isOpen && "rotate-180")} />
@@ -222,7 +213,13 @@ const SmartInput = ({
 
       {showDropdown && (
         <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-popover/95 backdrop-blur-lg border border-border/50 rounded-lg shadow-elegant max-h-80 overflow-y-auto">
-          {filteredSuggestions.map((suggestion, index) => (
+          {showNoExactMatch && (
+            <div className="px-3 py-2 text-xs text-muted-foreground border-b border-border/30 bg-muted/15">
+              No exact match — related picks for your task:
+            </div>
+          )}
+
+          {displayList.map((suggestion, index) => (
             <button
               key={`${suggestion}-${index}`}
               type="button"
@@ -230,17 +227,16 @@ const SmartInput = ({
               onClick={() => handleSuggestionSelect(suggestion)}
               className={cn(
                 "w-full text-left px-3 py-2 hover:bg-accent/50 transition-colors duration-200 text-sm text-muted-foreground",
-                selectedIndex === index && "bg-accent/50"
+                selectedIndex === index && "bg-accent/50",
               )}
             >
-              <HighlightMatch text={suggestion} query={value} />
+              <HighlightMatch text={suggestion} query={value.trim() || contextText.split(" ").slice(-1)[0] || ""} />
             </button>
           ))}
 
           <div className="px-3 py-1 text-xs text-muted-foreground border-t border-border/30 bg-muted/20">
-            <span className="font-medium">↑↓</span> navigate •
-            <span className="font-medium"> Enter</span> select •
-            <span className="font-medium"> Esc</span> close
+            <span className="font-medium">↑↓</span> navigate ·
+            <span className="font-medium"> Enter</span> select
           </div>
         </div>
       )}

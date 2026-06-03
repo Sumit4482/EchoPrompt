@@ -9,20 +9,19 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import {
   User,
   Settings,
   FileText,
   Database,
   LogOut,
-  Crown,
   Key,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import GeminiApiDialog from "./GeminiApiDialog";
+import ProfileEditDialog from "./ProfileEditDialog";
 
 interface ProfileMenuProps {
   onOpenSettings: () => void;
@@ -34,18 +33,14 @@ const ProfileMenu = ({ onOpenSettings }: ProfileMenuProps) => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [isGeminiDialogOpen, setIsGeminiDialogOpen] = useState(false);
+  const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
 
   const displayName = user?.fullName || user?.username || "User";
-  const planLabel = user?.subscription?.plan
-    ? user.subscription.plan.charAt(0).toUpperCase() + user.subscription.plan.slice(1)
-    : "Free";
-  const isPro = user?.subscription?.plan === "pro" || user?.subscription?.plan === "enterprise";
   const profile = {
     name: displayName,
     email: user?.email || "",
     avatar: "",
     initials: displayName.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase() || "U",
-    plan: planLabel,
     promptsGenerated: user?.usage?.promptsGenerated ?? 0,
     templatesCreated: user?.usage?.templatesCreated ?? 0,
   };
@@ -65,6 +60,10 @@ const ProfileMenu = ({ onOpenSettings }: ProfileMenuProps) => {
           
         case 'gemini-api':
           setIsGeminiDialogOpen(true);
+          break;
+
+        case 'profile':
+          setIsProfileDialogOpen(true);
           break;
           
         case 'logout':
@@ -117,9 +116,6 @@ const ProfileMenu = ({ onOpenSettings }: ProfileMenuProps) => {
               {profile.initials}
             </AvatarFallback>
           </Avatar>
-          {isPro && (
-            <Crown className="w-3 h-3 absolute -top-1 -right-1 text-yellow-500" />
-          )}
         </Button>
       </DropdownMenuTrigger>
       
@@ -139,15 +135,6 @@ const ProfileMenu = ({ onOpenSettings }: ProfileMenuProps) => {
                 <p className="text-xs leading-none text-muted-foreground mt-1">
                   {profile.email}
                 </p>
-                <div className="flex items-center mt-1">
-                  <Badge 
-                    variant={isPro ? "default" : "secondary"} 
-                    className="text-xs px-2 py-0"
-                  >
-                    {isPro && <Crown className="w-3 h-3 mr-1" />}
-                    {profile.plan}
-                  </Badge>
-                </div>
               </div>
             </div>
             
@@ -166,6 +153,15 @@ const ProfileMenu = ({ onOpenSettings }: ProfileMenuProps) => {
         </DropdownMenuLabel>
         
         <DropdownMenuSeparator />
+
+        <DropdownMenuItem
+          onClick={() => handleMenuAction('profile')}
+          disabled={isLoading}
+          className="cursor-pointer"
+        >
+          <User className="w-4 h-4 mr-2" />
+          <span>Edit profile</span>
+        </DropdownMenuItem>
         
         <DropdownMenuItem 
           onClick={onOpenSettings}
@@ -182,7 +178,7 @@ const ProfileMenu = ({ onOpenSettings }: ProfileMenuProps) => {
           className="cursor-pointer"
         >
           <Key className="w-4 h-4 mr-2" />
-          <span>Gemini API Key</span>
+          <span>Your API key (unlimited AI)</span>
         </DropdownMenuItem>
         
         <DropdownMenuSeparator />
@@ -222,6 +218,10 @@ const ProfileMenu = ({ onOpenSettings }: ProfileMenuProps) => {
     <GeminiApiDialog 
       isOpen={isGeminiDialogOpen} 
       onClose={() => setIsGeminiDialogOpen(false)} 
+    />
+    <ProfileEditDialog
+      open={isProfileDialogOpen}
+      onOpenChange={setIsProfileDialogOpen}
     />
     </>
   );

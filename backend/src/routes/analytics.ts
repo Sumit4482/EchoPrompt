@@ -5,6 +5,7 @@ import { Prompt } from '../models/Prompt';
 import User from '../models/User';
 import Analytics from '../models/Analytics';
 import { authenticate, optionalAuth } from '../middleware/auth';
+import { requireAdmin } from '../middleware/requireAdmin';
 import { AuthenticatedRequest, ApiResponse } from '../types';
 import { getFieldSuggestions } from '../utils/suggestionAggregator';
 import { SUGGESTION_FIELDS } from '../constants/suggestionFields';
@@ -107,7 +108,7 @@ router.post('/suggestions/record', optionalAuth, [
 // @route   GET /api/analytics/overview
 // @desc    Get platform overview statistics
 // @access  Public
-router.get('/overview', async (req, res) => {
+router.get('/overview', authenticate, requireAdmin, async (req, res) => {
   try {
     // Get basic counts
     const totalUsers = await User.countDocuments();
@@ -180,7 +181,7 @@ router.get('/overview', async (req, res) => {
 // @route   GET /api/analytics/trending
 // @desc    Get trending templates and prompts
 // @access  Public
-router.get('/trending', [
+router.get('/trending', authenticate, requireAdmin, [
   query('period').optional().isIn(['24h', '7d', '30d']).withMessage('Period must be 24h, 7d, or 30d'),
   query('limit').optional().isInt({ min: 1, max: 50 }).withMessage('Limit must be between 1 and 50'),
 ], async (req, res) => {
@@ -279,7 +280,7 @@ router.get('/trending', [
 // @route   GET /api/analytics/user-insights
 // @desc    Get user-specific analytics (private)
 // @access  Private
-router.get('/user-insights', authenticate, [
+router.get('/user-insights', authenticate, requireAdmin, [
   query('period').optional().isIn(['7d', '30d', '90d', 'all']).withMessage('Period must be 7d, 30d, 90d, or all'),
 ], async (req: AuthenticatedRequest, res) => {
   try {
@@ -422,7 +423,7 @@ router.get('/user-insights', authenticate, [
 // @route   GET /api/analytics/ai-generation
 // @desc    Get AI generation statistics and success rates
 // @access  Public
-router.get('/ai-generation', async (req, res) => {
+router.get('/ai-generation', authenticate, requireAdmin, async (req, res) => {
   try {
     // Get AI generation stats for the last 30 days
     const thirtyDaysAgo = new Date();

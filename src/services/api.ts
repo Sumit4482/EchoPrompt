@@ -17,6 +17,8 @@ export interface User {
   id: string;
   email: string;
   username: string;
+  role?: 'user' | 'admin';
+  isAdmin?: boolean;
   firstName?: string;
   lastName?: string;
   fullName?: string;
@@ -73,7 +75,7 @@ export interface PromptData {
 }
 
 export interface GeneratedPrompt {
-  _id: string;
+  _id?: string;
   content: string;
   promptData: PromptData;
   templateId?: string;
@@ -90,11 +92,14 @@ export interface GeneratedPrompt {
     views: number;
     copies: number;
     exports: number;
+    ratings?: number[];
   };
+  averageRating?: number;
+  ratingCount?: number;
   wordCount: number;
   characterCount: number;
   keywords?: string[];
-  createdAt: string;
+  createdAt?: string;
   createdBy?: any;
 }
 
@@ -167,6 +172,8 @@ class ApiService {
   }
 
   async updateProfile(data: {
+    email?: string;
+    username?: string;
     firstName?: string;
     lastName?: string;
     preferences?: Partial<User['preferences']>;
@@ -191,6 +198,39 @@ class ApiService {
     return this.handleResponse(response);
   }
 
+  async forgotPassword(email: string): Promise<ApiResponse<{ resetToken?: string }>> {
+    const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    return this.handleResponse(response);
+  }
+
+  async resetPassword(token: string, password: string): Promise<ApiResponse> {
+    const response = await fetch(`${API_BASE_URL}/auth/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, password }),
+    });
+    return this.handleResponse(response);
+  }
+
+  async getAiQuota(hasUserKey = false): Promise<
+    ApiResponse<{
+      limit: number;
+      used: number;
+      remaining: number;
+      hostedAvailable: boolean;
+    }>
+  > {
+    const q = hasUserKey ? "?hasUserKey=true" : "";
+    const response = await fetch(`${API_BASE_URL}/prompts/ai-quota${q}`, {
+      headers: this.getAuthHeaders(),
+    });
+    return this.handleResponse(response);
+  }
+
   // Prompt Generation
   async generatePrompt(promptData: PromptData, optimize: boolean = false): Promise<ApiResponse<{
     prompt: GeneratedPrompt;
@@ -201,34 +241,16 @@ class ApiService {
       keywords: string[];
     };
   }>> {
-    // Get user's Gemini API key from localStorage
-    const geminiApiKey = localStorage.getItem('gemini_api_key');
-    
+    const geminiApiKey = localStorage.getItem('gemini_api_key')?.trim();
+
     const response = await fetch(`${API_BASE_URL}/prompts/generate`, {
       method: 'POST',
       headers: this.getAuthHeaders(),
-      body: JSON.stringify({ 
-        promptData, 
-        optimize, 
-        ...(geminiApiKey && { geminiApiKey })
+      body: JSON.stringify({
+        promptData,
+        optimize,
+        ...(geminiApiKey ? { geminiApiKey } : {}),
       }),
-    });
-    return this.handleResponse(response);
-  }
-
-  async generatePromptLocal(promptData: PromptData, optimize: boolean = false): Promise<ApiResponse<{
-    prompt: GeneratedPrompt;
-    metadata: {
-      wordCount: number;
-      characterCount: number;
-      complexityScore: number;
-      keywords: string[];
-    };
-  }>> {
-    const response = await fetch(`${API_BASE_URL}/prompts/generate/local`, {
-      method: 'POST',
-      headers: this.getAuthHeaders(),
-      body: JSON.stringify({ promptData, optimize }),
     });
     return this.handleResponse(response);
   }
@@ -273,7 +295,10 @@ class ApiService {
     return response.blob();
   }
 
-  async updatePrompt(id: string, updates: Partial<GeneratedPrompt>): Promise<ApiResponse<GeneratedPrompt>> {
+  async updatePrompt(
+    id: string,
+    updates: Partial<GeneratedPrompt> & { promptData?: PromptData },
+  ): Promise<ApiResponse<GeneratedPrompt>> {
     const response = await fetch(`${API_BASE_URL}/prompts/${id}`, {
       method: 'PUT',
       headers: this.getAuthHeaders(),
@@ -295,13 +320,31 @@ class ApiService {
     promptData: PromptData;
     isPublic?: boolean;
     tags?: string[];
-  }): Promise<ApiResponse<GeneratedPrompt>> {
+    metadata?: {
+      aiEnhanced?: boolean;
+      optimized?: boolean;
+      generationTime?: number;
+    };
+  }): Promise<ApiResponse<{ prompt: GeneratedPrompt }>> {
     const response = await fetch(`${API_BASE_URL}/prompts/save`, {
       method: 'POST',
       headers: this.getAuthHeaders(),
       body: JSON.stringify(promptData),
     });
-    return this.handleResponse<GeneratedPrompt>(response);
+    return this.handleResponse<{ prompt: GeneratedPrompt }>(response);
+  }
+
+  async ratePrompt(
+    promptId: string,
+    rating: number,
+    feedback?: string
+  ): Promise<ApiResponse<{ averageRating: number; totalRatings: number }>> {
+    const response = await fetch(`${API_BASE_URL}/prompts/${promptId}/rate`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify({ rating, feedback }),
+    });
+    return this.handleResponse(response);
   }
 
   // Templates
@@ -510,6 +553,31 @@ class ApiService {
     return this.handleResponse<any[]>(response);
   }
 
+  async getLeaderboard(limit = 10): Promise<ApiResponse<
+    Array<{
+      userId: string;
+      username: string;
+      firstName?: string;
+      lastName?: string;
+      totalUsage: number;
+      templateCount: number;
+      averageRating: number;
+    }>
+  >> {
+    const response = await fetch(`${API_BASE_URL}/users/leaderboard?limit=${limit}`);
+    return this.handleResponse(response);
+  }
+
+  async exportUserData(): Promise<Blob> {
+    const response = await fetch(`${API_BASE_URL}/users/export`, {
+      headers: this.getAuthHeaders(),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `Export failed: ${response.statusText}`);
+    }
+    return response.blob();
+  }
 
   // Health Check
   async healthCheck(): Promise<any> {

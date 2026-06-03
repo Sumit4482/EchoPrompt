@@ -96,7 +96,7 @@ const GeminiApiDialog = ({ isOpen, onClose }: GeminiApiDialogProps) => {
   };
 
   const handleGetApiKey = () => {
-    window.open('https://makersuite.google.com/app/apikey', '_blank');
+    window.open('https://aistudio.google.com/apikey', '_blank');
   };
 
   return (
@@ -105,10 +105,10 @@ const GeminiApiDialog = ({ isOpen, onClose }: GeminiApiDialogProps) => {
         <DialogHeader>
           <DialogTitle className="flex items-center">
             <Key className="w-5 h-5 mr-2 text-primary" />
-            Gemini API Key Configuration
+            Your Gemini API key (optional)
           </DialogTitle>
           <DialogDescription>
-            Set your personal Gemini API key to enable AI-powered prompt generation with your own quota.
+            EchoPrompt includes free hosted AI (limited per day). Add your own Google key for unlimited generations — stored only in your browser.
           </DialogDescription>
         </DialogHeader>
 
@@ -127,7 +127,7 @@ const GeminiApiDialog = ({ isOpen, onClose }: GeminiApiDialogProps) => {
                 <>
                   <AlertCircle className="w-4 h-4 text-orange-500" />
                   <Badge variant="outline" className="border-orange-200 text-orange-800 dark:border-orange-800 dark:text-orange-200">
-                    Using Default Fallback
+                    Using free hosted AI
                   </Badge>
                 </>
               )}
@@ -161,7 +161,7 @@ const GeminiApiDialog = ({ isOpen, onClose }: GeminiApiDialogProps) => {
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Your API key is stored locally and never sent to our servers.
+              Stored in your browser only. Sent to our API when you generate (not saved on our servers).
             </p>
           </div>
 

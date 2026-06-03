@@ -83,10 +83,18 @@ function buildRoleSuggestions(): string[] {
     'Technical Writer',
     'API Designer',
   ];
+  const marketingAndCreative = [
+    'Social Media Manager',
+    'Content Writer',
+    'Email Marketing Specialist',
+    'Marketing Specialist',
+    'UX Designer',
+  ];
   return unique([
     ...combine(seniorities, engineering),
     ...combine(seniorities, productAndData),
     ...designAndDocs,
+    ...marketingAndCreative,
     'Open Source Maintainer',
     'Code Reviewer',
   ]);
@@ -177,6 +185,12 @@ function buildTaskSuggestions(): string[] {
     'Design idempotent webhook handler',
     'Plan zero-downtime database migration',
     'Audit dependencies for security vulnerabilities',
+    'Create social media content',
+    'Write an engaging blog post',
+    'Create email marketing campaign',
+    'Write comprehensive API documentation',
+    'Review the following code for best practices and potential issues',
+    'Create a comprehensive design brief for a mobile app',
   ];
   return unique([...combine(actions, deliverables), ...standalone]);
 }

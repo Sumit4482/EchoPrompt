@@ -7,10 +7,43 @@ import Analytics from '../models/Analytics';
 import { authenticate, optionalAuth } from '../middleware/auth';
 import { AuthenticatedRequest, ApiResponse, PromptQuery, ExportFormat } from '../types';
 import { PromptGenerator } from '../utils/promptGenerator';
-import { geminiService } from '../services/geminiService';
+import { geminiService, getServerGeminiApiKey } from '../services/geminiService';
 import { AI_GENERATED_CONTENT_MAX, clampPromptContent } from '../constants/promptLimits';
+import {
+  buildUsageKey,
+  consumeHostedGeneration,
+  getHostedQuotaStatus,
+  isServerHostedAiAvailable,
+} from '../services/hostedGenerationQuota';
 
 const router = express.Router();
+
+// @route   GET /api/prompts/ai-quota
+// @desc    Free hosted AI generations remaining today
+// @access  Public (optional auth)
+router.get('/ai-quota', optionalAuth, async (req: AuthenticatedRequest, res) => {
+  try {
+    const isAuthenticated = Boolean(req.user);
+    const usageKey = buildUsageKey(req.ip, req.user?._id?.toString());
+    const status = await getHostedQuotaStatus(usageKey, isAuthenticated);
+    const hasUserKey = Boolean(
+      (req.query.hasUserKey === 'true') || false,
+    );
+
+    res.json({
+      success: true,
+      data: {
+        ...status,
+        hostedAvailable: isServerHostedAiAvailable(),
+        usingOwnKey: hasUserKey,
+        unlimitedWithOwnKey: true,
+      },
+    } as ApiResponse);
+  } catch (error) {
+    console.error('AI quota error:', error);
+    res.status(500).json({ success: false, error: 'Server error' } as ApiResponse);
+  }
+});
 
 // @route   POST /api/prompts/generate
 // @desc    Generate a new prompt
@@ -40,6 +73,18 @@ router.post('/generate', optionalAuth, [
     }
 
     const { promptData, templateId, optimize = false, geminiApiKey } = req.body;
+    const userApiKey = typeof geminiApiKey === 'string' ? geminiApiKey.trim() : '';
+    const useOwnKey = Boolean(userApiKey);
+    const serverKey = getServerGeminiApiKey();
+    const isAuthenticated = Boolean(req.user);
+    const usageKey = buildUsageKey(req.ip, req.user?._id?.toString());
+
+    let hostedMeta: {
+      usedHostedKey: boolean;
+      limit: number;
+      used: number;
+      remaining: number;
+    } | null = null;
 
     // Validate prompt data
     const validation = PromptGenerator.validatePromptData(promptData);
@@ -56,18 +101,56 @@ router.post('/generate', optionalAuth, [
     let aiEnhanced = false;
     const startTime = Date.now();
     
-    try {
-      console.log('🤖 Attempting Gemini AI generation...');
-      if (geminiApiKey) {
-        console.log('🔑 Using user-provided API key');
+    let apiKeyForGeneration = userApiKey;
+
+    if (!useOwnKey) {
+      if (!serverKey) {
+        return res.status(503).json({
+          success: false,
+          error: 'Hosted AI is not available. Add your own Gemini API key in the profile menu for unlimited use.',
+        } as ApiResponse);
       }
-      content = await geminiService.generatePrompt(promptData, optimize, geminiApiKey);
+
+      const quota = await getHostedQuotaStatus(usageKey, isAuthenticated);
+      if (quota.remaining <= 0) {
+        return res.status(429).json({
+          success: false,
+          error: isAuthenticated
+            ? `Daily free AI limit reached (${quota.limit}/day). Add your own Gemini API key for unlimited generations.`
+            : `Guest free AI limit reached (${quota.limit}/day). Sign in for more, or add your own Gemini API key.`,
+          data: { hostedAi: { ...quota, usedHostedKey: true } },
+        } as ApiResponse);
+      }
+
+      apiKeyForGeneration = serverKey;
+    }
+
+    try {
+      console.log(useOwnKey ? '🤖 Gemini with user API key' : '🤖 Gemini with hosted server key');
+      content = await geminiService.generatePrompt(promptData, optimize, apiKeyForGeneration);
+
+      if (!useOwnKey && aiEnhanced) {
+        const consumed = await consumeHostedGeneration(usageKey, isAuthenticated);
+        hostedMeta = {
+          usedHostedKey: true,
+          limit: consumed.limit,
+          used: consumed.used,
+          remaining: consumed.remaining,
+        };
+      } else if (!useOwnKey) {
+        const status = await getHostedQuotaStatus(usageKey, isAuthenticated);
+        hostedMeta = {
+          usedHostedKey: true,
+          limit: status.limit,
+          used: status.used,
+          remaining: status.remaining,
+        };
+      }
       aiEnhanced = true;
       console.log('✅ Gemini AI generation successful');
       console.log('📝 Generated content length:', content.length);
     } catch (error) {
       console.error('❌ Gemini generation failed, using fallback:', error);
-      // Fallback to local generation
       content = PromptGenerator.generatePrompt(promptData);
       if (optimize) {
         content = PromptGenerator.optimizePrompt(content);
@@ -78,84 +161,63 @@ router.post('/generate', optionalAuth, [
     const generationTime = Date.now() - startTime;
     content = clampPromptContent(content, AI_GENERATED_CONTENT_MAX);
 
-    // Calculate word and character counts
     const wordCount = content.trim().split(/\s+/).filter(word => word.length > 0).length;
     const characterCount = content.length;
-
-    // Create and save the prompt
     const keywords = PromptGenerator.extractKeywords(promptData);
-    const prompt = new Prompt({
-      content,
-      promptData,
-      templateId: templateId || null,
-      createdBy: req.user?._id || null,
-      wordCount,
-      characterCount,
-      keywords,
-      analytics: {
-        views: 0,
-        copies: 0,
-        exports: 0
-      },
-      metadata: {
-        version: '1.0.0',
-        generatedAt: new Date(),
-        optimized: optimize,
-        aiEnhanced: aiEnhanced,
-        generationTime
-      }
-    });
 
-    await prompt.save();
-
-    // Track AI generation analytics
+    // Preview only — persist when user clicks Save (POST /prompts/save)
     try {
       await Analytics.logEvent({
         userId: req.user?._id || undefined,
         eventType: aiEnhanced ? 'ai_generation_success' : 'ai_generation_fallback',
         metadata: {
-          promptId: prompt._id as Types.ObjectId,
           aiProvider: aiEnhanced ? 'gemini' : 'fallback',
-          generationTime: generationTime,
-          wordCount: wordCount,
-          characterCount: characterCount,
+          generationTime,
+          wordCount,
+          characterCount,
           optimized: optimize,
-          sessionId: (req as any).sessionID || undefined
+          sessionId: (req as any).sessionID || undefined,
         },
         ipAddress: req.ip,
-        userAgent: req.get('User-Agent')
+        userAgent: req.get('User-Agent'),
       });
     } catch (analyticsError) {
       console.error('Failed to log AI generation analytics:', analyticsError);
-      // Don't fail the request if analytics logging fails
     }
 
-    // Update user's prompt count if authenticated
-    if (req.user) {
-      req.user.usage.promptsGenerated += 1;
-      await req.user.save();
-    }
+    const promptPayload = {
+      content,
+      promptData,
+      wordCount,
+      characterCount,
+      keywords,
+      metadata: {
+        version: '1.0.0',
+        generatedAt: new Date(),
+        optimized: optimize,
+        aiEnhanced,
+        generationTime,
+      },
+    };
 
-    // If generated from a template, increment its usage
-    if (templateId) {
-      const template = await Template.findById(templateId);
-      if (template) {
-        await template.incrementUsage();
-      }
-    }
-
-    res.status(201).json({
+    res.status(200).json({
       success: true,
       data: {
-        prompt,
+        prompt: promptPayload,
         metadata: {
-          wordCount: prompt.wordCount,
-          characterCount: prompt.characterCount,
+          wordCount,
+          characterCount,
           complexityScore: PromptGenerator.calculateComplexityScore(promptData),
-          keywords: PromptGenerator.extractKeywords(promptData)
-        }
+          keywords,
+          aiEnhanced,
+          hostedAi: hostedMeta,
+        },
       },
-      message: 'Prompt generated successfully'
+      message: aiEnhanced
+        ? useOwnKey
+          ? 'Prompt generated with your Gemini API key'
+          : 'Prompt generated with free hosted AI'
+        : 'Prompt generated (local fallback)',
     } as ApiResponse);
 
   } catch (error) {
@@ -209,42 +271,34 @@ router.post('/generate/local', optionalAuth, [
     const characterCount = content.length;
     const keywords = PromptGenerator.extractKeywords(promptData);
 
-    const prompt = new Prompt({
+    const promptPayload = {
       content,
       promptData,
-      createdBy: req.user?._id || null,
       wordCount,
       characterCount,
       keywords,
-      analytics: { views: 0, copies: 0, exports: 0 },
       metadata: {
         version: '1.0.0',
         generatedAt: new Date(),
         optimized: optimize,
         aiEnhanced: false,
-        generationTime: 0
-      }
-    });
+        generationTime: 0,
+      },
+    };
 
-    await prompt.save();
-
-    if (req.user) {
-      req.user.usage.promptsGenerated += 1;
-      await req.user.save();
-    }
-
-    res.status(201).json({
+    res.status(200).json({
       success: true,
       data: {
-        prompt,
+        prompt: promptPayload,
         metadata: {
           wordCount,
           characterCount,
           complexityScore: PromptGenerator.calculateComplexityScore(promptData),
-          keywords
-        }
+          keywords,
+          aiEnhanced: false,
+        },
       },
-      message: 'Prompt generated locally'
+      message: 'Prompt generated locally (preview only)',
     } as ApiResponse);
   } catch (error) {
     console.error('Local generate error:', error);
@@ -538,6 +592,10 @@ router.put('/:id', authenticate, [
     .optional()
     .isArray()
     .withMessage('Tags must be an array'),
+  body('promptData')
+    .optional()
+    .isObject()
+    .withMessage('promptData must be an object'),
 ], async (req: AuthenticatedRequest, res) => {
   try {
     // Check for validation errors
@@ -567,7 +625,7 @@ router.put('/:id', authenticate, [
       } as ApiResponse);
     }
 
-    const { content, isPublic, tags } = req.body;
+    const { content, isPublic, tags, promptData } = req.body;
 
     // Update fields if provided
     if (content !== undefined) {
@@ -583,6 +641,10 @@ router.put('/:id', authenticate, [
     
     if (tags !== undefined) {
       prompt.tags = tags;
+    }
+
+    if (promptData !== undefined) {
+      prompt.promptData = { ...prompt.promptData, ...promptData };
     }
 
     await prompt.save();
@@ -620,6 +682,10 @@ router.post('/save', authenticate, [
     .optional()
     .isArray()
     .withMessage('Tags must be an array'),
+  body('metadata')
+    .optional()
+    .isObject()
+    .withMessage('metadata must be an object'),
 ], async (req: AuthenticatedRequest, res) => {
   try {
     // Check for validation errors
@@ -632,7 +698,7 @@ router.post('/save', authenticate, [
       } as ApiResponse);
     }
 
-    const { content, promptData, isPublic = false, tags = [] } = req.body;
+    const { content, promptData, isPublic = false, tags = [], metadata: genMeta = {} } = req.body;
 
     // Ensure content is a string
     const contentStr = clampPromptContent(String(content || ''));
@@ -658,21 +724,22 @@ router.post('/save', authenticate, [
       metadata: {
         version: '1.0.0',
         generatedAt: new Date(),
-        optimized: false,
-        aiEnhanced: false
-      }
+        optimized: Boolean(genMeta.optimized),
+        aiEnhanced: Boolean(genMeta.aiEnhanced),
+        generationTime: typeof genMeta.generationTime === 'number' ? genMeta.generationTime : undefined,
+      },
     });
 
     await prompt.save();
 
-    // Update user's prompt count
     req.user!.usage.promptsGenerated += 1;
+    req.user!.usage.lastActivity = new Date();
     await req.user!.save();
 
     res.status(201).json({
       success: true,
-      data: prompt,
-      message: 'Prompt saved successfully'
+      data: { prompt },
+      message: 'Prompt saved successfully',
     } as ApiResponse);
 
   } catch (error) {
@@ -827,7 +894,7 @@ router.post('/:id/rate', authenticate, [
       } as ApiResponse);
     }
 
-    const { rating, feedback } = req.body;
+    const { rating } = req.body;
     const prompt = await Prompt.findById(req.params.id);
 
     if (!prompt) {
@@ -837,13 +904,20 @@ router.post('/:id/rate', authenticate, [
       } as ApiResponse);
     }
 
-    await prompt.addRating(req.user!._id.toString(), rating, feedback);
+    if (prompt.createdBy?.toString() === req.user!._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        error: 'You cannot rate your own prompt',
+      } as ApiResponse);
+    }
+
+    await prompt.addRating(req.user!._id.toString(), rating);
 
     res.json({
       success: true,
       data: {
         averageRating: prompt.averageRating,
-        totalRatings: prompt.analytics.ratings.length
+        totalRatings: (prompt as { ratingCount?: number }).ratingCount ?? 0,
       },
       message: 'Rating added successfully'
     } as ApiResponse);

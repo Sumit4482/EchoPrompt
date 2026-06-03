@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Settings, Zap, Database, FileText, Menu, X } from "lucide-react";
+import { Settings, Zap, Database, FileText, Menu, X, BarChart3 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import SettingsDialog from "./SettingsDialog";
 import ProfileMenu from "./ProfileMenu";
@@ -13,6 +14,7 @@ const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
   const { isGenerating, lastGenerationStatus } = useAI();
+  const { user } = useAuth();
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 h-16 glass border-b border-border/30 backdrop-blur-xl">
@@ -54,6 +56,17 @@ const Header = () => {
               <FileText className="w-4 h-4 mr-2" />
               My Prompts
             </Button>
+
+            {user?.isAdmin && (
+              <Button
+                variant="ghost"
+                className="h-9 px-3 hover:bg-primary/10 hover:text-primary transition-all duration-200"
+                onClick={() => navigate('/analytics')}
+              >
+                <BarChart3 className="w-4 h-4 mr-2" />
+                Analytics
+              </Button>
+            )}
           </nav>
         </div>
 
@@ -125,6 +138,19 @@ const Header = () => {
                   <p className="text-xs text-muted-foreground">View your generated prompts</p>
                 </div>
               </Button>
+              {user?.isAdmin && (
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start h-12 text-left"
+                  onClick={() => { navigate('/analytics'); setMobileMenuOpen(false); }}
+                >
+                  <BarChart3 className="w-5 h-5 mr-3" />
+                  <div>
+                    <p className="font-medium">Analytics</p>
+                    <p className="text-xs text-muted-foreground">Stats, trending & export</p>
+                  </div>
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 className="w-full justify-start h-12 text-left"

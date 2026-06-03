@@ -9,6 +9,7 @@ import { Zap, Mail, Lock, User, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate, Link } from "react-router-dom";
+import ForgotPasswordDialog from "@/components/EchoPrompt/ForgotPasswordDialog";
 
 const Login = () => {
   const { toast } = useToast();
@@ -33,6 +34,7 @@ const Login = () => {
 
   const [showPassword, setShowPassword] = useState(false);
   const [activeTab, setActiveTab] = useState("login");
+  const [forgotOpen, setForgotOpen] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const validateLoginForm = () => {
@@ -222,7 +224,12 @@ const Login = () => {
                 </form>
 
                 <div className="text-center">
-                  <Button variant="link" className="text-xs text-muted-foreground h-auto p-0">
+                  <Button
+                    type="button"
+                    variant="link"
+                    className="text-xs text-muted-foreground h-auto p-0"
+                    onClick={() => setForgotOpen(true)}
+                  >
                     Forgot your password?
                   </Button>
                 </div>
@@ -367,6 +374,8 @@ const Login = () => {
           </Link>
         </div>
       </div>
+
+      <ForgotPasswordDialog open={forgotOpen} onOpenChange={setForgotOpen} />
     </div>
   );
 };

@@ -4,9 +4,12 @@ import {
   type GenerationConfig,
 } from '@google/generative-ai';
 
-const DEFAULT_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
-const genAI = DEFAULT_API_KEY ? new GoogleGenerativeAI(DEFAULT_API_KEY) : null;
+const SERVER_API_KEY = process.env.GEMINI_API_KEY?.trim() || '';
+
+export function getServerGeminiApiKey(): string | undefined {
+  return SERVER_API_KEY || undefined;
+}
 
 const GENERATION_CONFIG = {
   standard: { maxOutputTokens: 800, temperature: 0.45 },
@@ -71,12 +74,12 @@ function buildSpecificationsBlock(promptData: Record<string, string | undefined>
 export class GeminiService {
   async generatePrompt(promptData: any, optimize: boolean = false, customApiKey?: string): Promise<string> {
     try {
-      const apiKey = customApiKey || DEFAULT_API_KEY;
+      const apiKey = customApiKey?.trim() || SERVER_API_KEY;
       if (!apiKey) {
-        throw new Error('No Gemini API key configured. Set GEMINI_API_KEY in environment or provide a key in settings.');
+        throw new Error('AI generation is not configured. Try again later or add your own Gemini API key.');
       }
 
-      const genAIInstance = customApiKey ? new GoogleGenerativeAI(apiKey) : genAI!;
+      const genAIInstance = new GoogleGenerativeAI(apiKey);
       const generationConfig: GenerationConfig = optimize
         ? GENERATION_CONFIG.optimized
         : GENERATION_CONFIG.standard;

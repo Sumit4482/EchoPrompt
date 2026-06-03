@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
+import GeminiApiDialog from "@/components/EchoPrompt/GeminiApiDialog";
 import { useSearchParams } from "react-router-dom";
 import Header from "@/components/EchoPrompt/Header";
 import PromptBuilder from "@/components/EchoPrompt/PromptBuilder";
@@ -8,6 +9,11 @@ import CommunityHub from "@/components/EchoPrompt/CommunityHub";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Eye, Edit3, Users, Zap } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import GuestBanner from "@/components/EchoPrompt/GuestBanner";
+import AiUsageHint from "@/components/EchoPrompt/AiUsageHint";
+import type { PromptData } from "@/services/api";
+import type { BuilderLoadPayload } from "@/components/EchoPrompt/PromptBuilder";
 
 const DASHBOARD_TABS = ["templates", "builder", "community"] as const;
 type DashboardTab = (typeof DASHBOARD_TABS)[number];
@@ -16,6 +22,7 @@ const isDashboardTab = (value: string | null): value is DashboardTab =>
   value !== null && (DASHBOARD_TABS as readonly string[]).includes(value);
 
 const Dashboard = () => {
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [currentPrompt, setCurrentPrompt] = useState("");
   const [activePanel, setActivePanel] = useState<"builder" | "preview">("builder");
@@ -37,25 +44,44 @@ const Dashboard = () => {
       { replace: true },
     );
   };
-  const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
+  const [builderLoad, setBuilderLoad] = useState<BuilderLoadPayload | null>(null);
   const [communityRefreshTrigger, setCommunityRefreshTrigger] = useState(0);
+  const [geminiDialogOpen, setGeminiDialogOpen] = useState(false);
 
-  const handlePromptChange = (prompt: string) => {
+  const handlePromptChange = useCallback((prompt: string) => {
     setCurrentPrompt(prompt);
-    // Clear selected template when user starts editing
-    if (selectedTemplate) {
-      setSelectedTemplate(null);
-    }
+  }, []);
+
+  const handleBuilderReset = useCallback(() => {
+    setBuilderLoad(null);
+    setCurrentPrompt("");
+  }, []);
+
+  const handleBuilderUndo = useCallback(
+    (payload: { previewContent: string; builderLoad: BuilderLoadPayload | null }) => {
+      setCurrentPrompt(payload.previewContent);
+      setBuilderLoad(payload.builderLoad);
+    },
+    [],
+  );
+
+  const loadIntoBuilder = (promptData: PromptData, content?: string) => {
+    setBuilderLoad({
+      id: Date.now(),
+      promptData,
+      content: content?.trim() || undefined,
+    });
+    setActiveTab("builder");
+    setActivePanel(content?.trim() ? "preview" : "builder");
   };
 
-  const handleTemplateSelect = (template: { promptData?: unknown }) => {
-    setSelectedTemplate(template);
-    setActiveTab("builder");
+  const handleTemplateSelect = (template: { promptData: PromptData }) => {
+    loadIntoBuilder(template.promptData);
   };
 
-  const handlePromptUse = (prompt: { promptData?: unknown }) => {
-    setSelectedTemplate({ promptData: prompt.promptData });
-    setActiveTab("builder");
+  const handlePromptUse = (prompt: { promptData?: PromptData; content?: string }) => {
+    if (!prompt.promptData) return;
+    loadIntoBuilder(prompt.promptData, prompt.content);
   };
 
   const handlePromptSaved = () => {
@@ -74,13 +100,17 @@ const Dashboard = () => {
           <div>
             <h1 className="text-base font-semibold tracking-tight">Prompt Builder</h1>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Create prompts from templates or build your own.
+              Write a task, use field dropdowns, copy the preview · Blueprints tab for full recipes
             </p>
+            <div className="mt-1.5">
+              <AiUsageHint />
+            </div>
           </div>
         </div>
 
         {/* Tabs + scrollable content */}
         <div className="flex flex-col flex-1 overflow-hidden px-6">
+          {!authLoading && !isAuthenticated && <GuestBanner />}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 overflow-hidden min-h-0">
             <TabsList className="shrink-0 w-full bg-transparent border-b border-border/30 rounded-none h-auto p-0 grid grid-cols-3 gap-0 mt-1">
               <TabsTrigger
@@ -88,7 +118,7 @@ const Dashboard = () => {
                 className="flex items-center justify-center gap-1.5 text-sm rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none h-10 text-muted-foreground hover:text-foreground transition-colors"
               >
                 <Zap className="w-3.5 h-3.5" />
-                Templates
+                Blueprints
               </TabsTrigger>
               <TabsTrigger
                 value="builder"
@@ -104,6 +134,7 @@ const Dashboard = () => {
                 <Users className="w-3.5 h-3.5" />
                 Community
               </TabsTrigger>
+              {/* tab value stays "templates" / "community" for URL compatibility */}
             </TabsList>
 
             <TabsContent
@@ -115,7 +146,7 @@ const Dashboard = () => {
 
             <TabsContent
               value="builder"
-              className="flex-1 overflow-hidden min-h-0 mt-0 pt-4 pb-4 data-[state=inactive]:hidden"
+              className="flex-1 overflow-hidden min-h-0 mt-0 pt-4 pb-20 md:pb-4 data-[state=inactive]:hidden"
             >
               <div className="h-full grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div
@@ -126,9 +157,11 @@ const Dashboard = () => {
                   <PromptBuilder
                     currentPrompt={currentPrompt}
                     onPromptChange={handlePromptChange}
-                    templateData={selectedTemplate?.promptData}
+                    builderLoad={builderLoad}
                     onPromptSaved={handlePromptSaved}
-                    onReset={() => setSelectedTemplate(null)}
+                    onBuilderReset={handleBuilderReset}
+                    onBuilderUndo={handleBuilderUndo}
+                    onGenerated={() => setActivePanel("preview")}
                   />
                 </div>
                 <div
@@ -176,6 +209,8 @@ const Dashboard = () => {
           </div>
         </div>
       )}
+
+      <GeminiApiDialog isOpen={geminiDialogOpen} onClose={() => setGeminiDialogOpen(false)} />
     </div>
   );
 };

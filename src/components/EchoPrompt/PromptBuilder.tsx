@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,14 +8,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ChevronDown, ChevronUp, Sparkles, Save, Zap, Settings } from "lucide-react";
+import { ChevronDown, ChevronUp, Sparkles, Save, Zap, Settings, Undo2, Copy } from "lucide-react";
+import { buildPromptText, hasPreviewablePrompt } from "@/lib/buildPromptText";
 import { useToast } from "@/hooks/use-toast";
 import { apiService, PromptData } from "@/services/api";
 import SmartInput from "./SmartInput";
 import TemplateDialog from "./TemplateDialog";
 import KeyboardShortcuts from "./KeyboardShortcuts";
 import { useAI } from "@/contexts/AIContext";
-import { useFieldSuggestions } from "@/hooks/useFieldSuggestions";
+import { useContextualFieldSuggestions } from "@/hooks/useContextualFieldSuggestions";
+import { findTaskBundleMatch } from "@/lib/contextualSuggestions";
+import { fillEmptyFromBundle, applyTaskFieldBundle } from "@/constants/taskFieldBundles";
 import { trackPromptDataSuggestions } from "@/lib/suggestionFeedback";
 import { BuilderSuggestionField } from "@/constants/builderSuggestions";
 import {
@@ -23,6 +27,16 @@ import {
   withPromptDefaults,
   type PromptDefaults,
 } from "@/lib/promptDefaults";
+import { hasGeminiApiKey } from "@/lib/geminiKey";
+import {
+  savePromptDraft,
+  loadPromptDraft,
+  clearPromptDraft,
+  getEditingPromptId,
+  setEditingPromptId,
+  clearEditingPromptId,
+} from "@/lib/promptDraft";
+import GeminiApiDialog from "./GeminiApiDialog";
 
 const EMPTY_PROMPT_DATA: PromptData = {
   role: "",
@@ -40,62 +54,118 @@ const EMPTY_PROMPT_DATA: PromptData = {
   customVariables: "",
 };
 
-function buildPromptText(data: PromptData): string {
-  let prompt = "";
-  if (data.role) prompt += `You are a ${data.role}. `;
-  if (data.task) prompt += `${data.task}`;
-  if (data.context) prompt += `\n\nContext: ${data.context}`;
-  if (data.tone) prompt += `\n\nTone: ${data.tone}`;
-  if (data.outputFormat) prompt += `\n\nOutput Format: ${data.outputFormat}`;
-  if (data.constraints) prompt += `\n\nConstraints: ${data.constraints}`;
-  if (data.responseLength) prompt += `\n\nResponse Length: ${data.responseLength}`;
-  if (data.audience) prompt += `\n\nTarget Audience: ${data.audience}`;
-  if (data.industry) prompt += `\n\nIndustry Context: ${data.industry}`;
-  if (data.mood) prompt += `\n\nMood/Emotion: ${data.mood}`;
-  if (data.language) prompt += `\n\nLanguage: ${data.language}`;
-  if (data.complexity) prompt += `\n\nComplexity Level: ${data.complexity}`;
-  if (data.customVariables) prompt += `\n\nCustom Variables: ${data.customVariables}`;
-  return prompt;
-}
+export type BuilderLoadPayload = {
+  id: number;
+  promptData: PromptData;
+  content?: string;
+};
 
 interface PromptBuilderProps {
   currentPrompt: string;
   onPromptChange: (prompt: string) => void;
-  templateData?: PromptData;
+  builderLoad?: BuilderLoadPayload | null;
   onPromptSaved?: () => void;
-  onReset?: () => void;
+  onBuilderReset?: () => void;
+  onBuilderUndo?: (payload: { previewContent: string; builderLoad: BuilderLoadPayload | null }) => void;
+  onGenerated?: () => void;
+}
+
+type BuilderUndoSnapshot = {
+  promptData: PromptData;
+  previewContent: string;
+  preserveAiPreview: boolean;
+  lastAiEnhanced: boolean;
+  saveAsPublic: boolean;
+  isAdvancedOpen: boolean;
+  editingPromptId: string | null;
+  builderLoad: BuilderLoadPayload | null;
+};
+
+const SUBSTANTIVE_FIELDS: (keyof PromptData)[] = [
+  "role",
+  "task",
+  "context",
+  "constraints",
+  "responseLength",
+  "audience",
+  "industry",
+  "mood",
+  "language",
+  "complexity",
+  "customVariables",
+];
+
+function hasSubstantiveFields(data: PromptData): boolean {
+  if (data.task?.trim()) return true;
+  return SUBSTANTIVE_FIELDS.some((key) => (data[key] ?? "").trim().length > 0);
+}
+
+/** Ignore tone/outputFormat — those are often just settings defaults after reset. */
+function hasBuilderContent(data: PromptData, preview: string): boolean {
+  if (preview.trim()) return true;
+  return SUBSTANTIVE_FIELDS.some((key) => (data[key] ?? "").trim().length > 0);
 }
 
 const PromptBuilder = ({
   currentPrompt,
   onPromptChange,
-  templateData,
+  builderLoad,
   onPromptSaved,
-  onReset,
+  onBuilderReset,
+  onBuilderUndo,
+  onGenerated,
 }: PromptBuilderProps) => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
   const { toast } = useToast();
   const { startGeneration, completeGeneration } = useAI();
-  const { suggestions: fieldSuggestions } = useFieldSuggestions();
   const [promptData, setPromptData] = useState<PromptData>({ ...EMPTY_PROMPT_DATA });
-  
+  const { suggestions: fieldSuggestions } = useContextualFieldSuggestions(promptData);
+  const builderContext = [promptData.task, promptData.role, promptData.context]
+    .filter(Boolean)
+    .join(" ");
+  const taskAutoFillRef = useRef("");
+
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const [templateDialogMode, setTemplateDialogMode] = useState<"save" | "load">("save");
+  const [saveAsPublic, setSaveAsPublic] = useState(false);
+  const [lastAiEnhanced, setLastAiEnhanced] = useState(false);
+  const [geminiDialogOpen, setGeminiDialogOpen] = useState(false);
+  const editingPromptId = getEditingPromptId();
+  const [undoSnapshot, setUndoSnapshot] = useState<BuilderUndoSnapshot | null>(null);
   /** When true, field edits won't overwrite AI-generated preview text */
   const preserveAiPreviewRef = useRef(false);
 
   const syncPreviewFromFields = useCallback(
     (data: PromptData) => {
       preserveAiPreviewRef.current = false;
-      onPromptChange(buildPromptText(data));
+      onPromptChange(hasPreviewablePrompt(data) ? buildPromptText(data) : "");
     },
     [onPromptChange],
   );
 
-  // Check for template or prompt data in localStorage on mount (set by Library / MyTemplates)
+  // Restore local draft when nothing else is loading into the builder
+  useEffect(() => {
+    const templateRaw = localStorage.getItem("selectedTemplate");
+    const promptRaw = localStorage.getItem("selectedPrompt");
+    if (templateRaw || promptRaw) return;
+
+    const draft = loadPromptDraft();
+    if (draft?.promptData) {
+      setPromptData({ ...EMPTY_PROMPT_DATA, ...draft.promptData });
+      if (draft.content?.trim()) {
+        preserveAiPreviewRef.current = true;
+        onPromptChange(draft.content);
+      }
+      setLastAiEnhanced(draft.lastAiEnhanced);
+    }
+  }, [onPromptChange]);
+
+  // Check for template or prompt data in localStorage on mount (set by MyTemplates / MyPrompts)
   useEffect(() => {
     const templateRaw = localStorage.getItem('selectedTemplate');
     const promptRaw = localStorage.getItem('selectedPrompt');
@@ -151,30 +221,43 @@ const PromptBuilder = ({
     return () => window.removeEventListener(PROMPT_DEFAULTS_UPDATED, onDefaultsUpdated);
   }, []);
 
-  // Load template data when provided as prop
+  // Load from Templates or Community tab (always overrides current preview)
   useEffect(() => {
-    if (templateData) {
-      console.log('📝 Loading template data from prop:', templateData);
-      // Ensure all values are strings to prevent undefined errors
-      const safeTemplateData = {
-        role: templateData.role || "",
-        task: templateData.task || "",
-        context: templateData.context || "",
-        tone: templateData.tone || "",
-        outputFormat: templateData.outputFormat || "",
-        constraints: templateData.constraints || "",
-        responseLength: templateData.responseLength || "",
-        audience: templateData.audience || "",
-        industry: templateData.industry || "",
-        mood: templateData.mood || "",
-        language: templateData.language || "",
-        complexity: templateData.complexity || "",
-        customVariables: templateData.customVariables || ""
-      };
-      setPromptData(safeTemplateData);
-      syncPreviewFromFields(safeTemplateData);
+    if (!builderLoad) return;
+
+    const safe: PromptData = {
+      role: builderLoad.promptData.role || "",
+      task: builderLoad.promptData.task || "",
+      context: builderLoad.promptData.context || "",
+      tone: builderLoad.promptData.tone || "",
+      outputFormat: builderLoad.promptData.outputFormat || "",
+      constraints: builderLoad.promptData.constraints || "",
+      responseLength: builderLoad.promptData.responseLength || "",
+      audience: builderLoad.promptData.audience || "",
+      industry: builderLoad.promptData.industry || "",
+      mood: builderLoad.promptData.mood || "",
+      language: builderLoad.promptData.language || "",
+      complexity: builderLoad.promptData.complexity || "",
+      customVariables: builderLoad.promptData.customVariables || "",
+    };
+
+    setPromptData(safe);
+    clearEditingPromptId();
+
+    if (builderLoad.content) {
+      preserveAiPreviewRef.current = true;
+      setLastAiEnhanced(false);
+      onPromptChange(builderLoad.content);
+    } else {
+      syncPreviewFromFields(safe);
     }
-  }, [templateData, syncPreviewFromFields]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-apply when user picks template/community
+  }, [builderLoad?.id]);
+
+  // New template/community load supersedes undo
+  useEffect(() => {
+    if (builderLoad?.id) setUndoSnapshot(null);
+  }, [builderLoad?.id]);
 
   const updatePromptData = useCallback((field: keyof PromptData, value: string) => {
     preserveAiPreviewRef.current = false;
@@ -184,14 +267,34 @@ const PromptBuilder = ({
   // Rebuild preview from fields when builder inputs change (not after AI generate)
   useEffect(() => {
     if (preserveAiPreviewRef.current) return;
-    onPromptChange(buildPromptText(promptData));
+    onPromptChange(hasPreviewablePrompt(promptData) ? buildPromptText(promptData) : "");
   }, [promptData, onPromptChange]);
-
-
 
   // Create stable onChange handlers for each field
   const handleRoleChange = useCallback((value: string) => updatePromptData("role", value), [updatePromptData]);
-  const handleTaskChange = useCallback((value: string) => updatePromptData("task", value), [updatePromptData]);
+  const handleTaskChange = useCallback((value: string) => {
+    preserveAiPreviewRef.current = false;
+    taskAutoFillRef.current = "";
+    setPromptData((prev) =>
+      withPromptDefaults(applyTaskFieldBundle(prev, value)),
+    );
+  }, []);
+
+  // While typing a task, softly fill empty fields when topic is recognizable
+  useEffect(() => {
+    const task = promptData.task?.trim() ?? "";
+    if (task.length < 6 || promptData.role?.trim()) return;
+
+    const timer = window.setTimeout(() => {
+      if (taskAutoFillRef.current === task) return;
+      const bundle = findTaskBundleMatch(task);
+      if (!bundle) return;
+      taskAutoFillRef.current = task;
+      setPromptData((prev) => withPromptDefaults(fillEmptyFromBundle(prev, bundle)));
+    }, 500);
+
+    return () => window.clearTimeout(timer);
+  }, [promptData.task, promptData.role]);
   const handleContextChange = useCallback((value: string) => updatePromptData("context", value), [updatePromptData]);
   const handleToneChange = useCallback((value: string) => updatePromptData("tone", value), [updatePromptData]);
   const handleOutputFormatChange = useCallback((value: string) => updatePromptData("outputFormat", value), [updatePromptData]);
@@ -203,6 +306,20 @@ const PromptBuilder = ({
   const handleLanguageChange = useCallback((value: string) => updatePromptData("language", value), [updatePromptData]);
   const handleComplexityChange = useCallback((value: string) => updatePromptData("complexity", value), [updatePromptData]);
   const handleCustomVariablesChange = useCallback((value: string) => updatePromptData("customVariables", value), [updatePromptData]);
+
+  const handleCopyPrompt = useCallback(() => {
+    const text = currentPrompt.trim() || buildPromptText(promptData);
+    if (!text.trim()) {
+      toast({
+        title: "Nothing to copy",
+        description: "Write a task or pick a blueprint first.",
+        variant: "destructive",
+      });
+      return;
+    }
+    navigator.clipboard.writeText(text);
+    toast({ title: "Copied", description: "Structured prompt ready for ChatGPT / Claude." });
+  }, [currentPrompt, promptData, toast]);
 
   const handleGenerateWithAI = async () => {
     if (!promptData.task) {
@@ -223,33 +340,65 @@ const PromptBuilder = ({
         preserveAiPreviewRef.current = true;
         onPromptChange(response.data.prompt.content);
         const isAISuccess = response.data.prompt.metadata?.aiEnhanced || false;
+        setLastAiEnhanced(isAISuccess);
         
         completeGeneration(isAISuccess);
         
+        savePromptDraft({
+          promptData,
+          content: response.data.prompt.content,
+          lastAiEnhanced: isAISuccess,
+          savedAt: new Date().toISOString(),
+        });
+
+        const hosted = response.data.metadata?.hostedAi as
+          | { remaining?: number; limit?: number }
+          | undefined;
+        const quotaHint =
+          hosted && typeof hosted.remaining === "number"
+            ? ` ${hosted.remaining} free AI runs left today.`
+            : hasGeminiApiKey()
+              ? " Using your API key."
+              : "";
+
         toast({
-          title: isAISuccess ? "Prompt ready" : "Fallback mode",
+          title: isAISuccess ? "Enhanced" : "Enhance unavailable",
           description: isAISuccess
-            ? `Focused prompt generated (${response.data.metadata.wordCount} words).`
-            : `Used local template — check your Gemini API key.`,
+            ? `Optional AI polish applied (${response.data.metadata.wordCount} words).${quotaHint}`
+            : `Using your structured prompt — hosted AI may be unavailable or over limit.`,
           variant: isAISuccess ? "default" : "destructive",
         });
+        onGenerated?.();
       } else {
         throw new Error(response.error || "Failed to generate prompt with AI");
       }
     } catch (error) {
       console.error("Error generating prompt with AI:", error);
       completeGeneration(false);
+      const msg = error instanceof Error ? error.message : "Failed to generate with AI.";
       toast({
         title: "AI Generation Failed",
-        description: error instanceof Error ? error.message : "Failed to generate with AI. Try local generation instead.",
+        description: msg.includes("limit") ? `${msg} Or add your own Gemini key (profile menu).` : msg,
         variant: "destructive",
       });
+      if (msg.includes("limit") || msg.includes("API key")) {
+        setGeminiDialogOpen(true);
+      }
     } finally {
       setIsGenerating(false);
     }
   };
 
   const handleSavePrompt = async () => {
+    if (!isAuthenticated) {
+      toast({
+        title: "Sign in to save",
+        description: "Generate is free as a guest; saving requires an account.",
+      });
+      navigate("/login");
+      return;
+    }
+
     if (!promptData.task) {
       toast({
         title: "⚠️ Task Required",
@@ -264,18 +413,31 @@ const PromptBuilder = ({
       const contentToSave =
         currentPrompt.trim() || buildPromptText(promptData);
 
-      const response = await apiService.savePrompt({
-        content: contentToSave,
-        promptData: promptData,
-        isPublic: false,
-        tags: [promptData.role, promptData.industry, promptData.outputFormat].filter(Boolean)
-      });
-      
+      const tags = [promptData.role, promptData.industry, promptData.outputFormat].filter(Boolean);
+      const response = editingPromptId
+        ? await apiService.updatePrompt(editingPromptId, {
+            content: contentToSave,
+            promptData,
+            isPublic: saveAsPublic,
+            tags,
+          })
+        : await apiService.savePrompt({
+            content: contentToSave,
+            promptData,
+            isPublic: saveAsPublic,
+            tags,
+            metadata: { aiEnhanced: lastAiEnhanced, optimized: true },
+          });
+
       if (response.success) {
         trackPromptDataSuggestions(promptData);
+        clearPromptDraft();
+        if (!editingPromptId) clearEditingPromptId();
         toast({
-          title: "Prompt Saved",
-          description: "Saved to My Prompts.",
+          title: editingPromptId ? "Prompt updated" : "Prompt Saved",
+          description: saveAsPublic
+            ? "Saved and shared to Community."
+            : "Saved to My Prompts.",
         });
         if (onPromptSaved) onPromptSaved();
       } else {
@@ -333,11 +495,65 @@ const PromptBuilder = ({
   };
 
   const handleReset = () => {
-    preserveAiPreviewRef.current = false;
-    setPromptData({ ...EMPTY_PROMPT_DATA });
+    const canUndo = hasBuilderContent(promptData, currentPrompt);
+    if (canUndo) {
+      setUndoSnapshot({
+        promptData: { ...promptData },
+        previewContent: currentPrompt,
+        preserveAiPreview: preserveAiPreviewRef.current,
+        lastAiEnhanced,
+        saveAsPublic,
+        isAdvancedOpen,
+        editingPromptId: getEditingPromptId(),
+        builderLoad: builderLoad ?? null,
+      });
+    }
+
+    setLastAiEnhanced(false);
+    setSaveAsPublic(false);
     setIsAdvancedOpen(false);
+    clearPromptDraft();
+    clearEditingPromptId();
+    localStorage.removeItem("selectedTemplate");
+    localStorage.removeItem("selectedPrompt");
+
+    taskAutoFillRef.current = "";
+    const fresh = withPromptDefaults({ ...EMPTY_PROMPT_DATA });
+    setPromptData(fresh);
+    preserveAiPreviewRef.current = true;
     onPromptChange("");
-    onReset?.();
+    onBuilderReset?.();
+
+    toast({
+      title: "Builder reset",
+      description: canUndo ? "Cleared. Use Undo to restore." : "Fields and preview cleared.",
+    });
+  };
+
+  const handleUndo = () => {
+    if (!undoSnapshot) return;
+
+    const snap = undoSnapshot;
+    setPromptData(snap.promptData);
+    setLastAiEnhanced(snap.lastAiEnhanced);
+    setSaveAsPublic(snap.saveAsPublic);
+    setIsAdvancedOpen(snap.isAdvancedOpen);
+    preserveAiPreviewRef.current = snap.preserveAiPreview;
+
+    if (snap.editingPromptId) {
+      setEditingPromptId(snap.editingPromptId);
+    } else {
+      clearEditingPromptId();
+    }
+
+    onPromptChange(snap.previewContent);
+    onBuilderUndo?.({
+      previewContent: snap.previewContent,
+      builderLoad: snap.builderLoad,
+    });
+    setUndoSnapshot(null);
+
+    toast({ title: "Restored", description: "Previous builder state recovered." });
   };
 
   return (
@@ -358,68 +574,117 @@ const PromptBuilder = ({
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm font-medium flex items-center gap-1.5">
                 <Zap className="w-3.5 h-3.5 text-primary" />
-                Essential Fields
+                Build your prompt
               </CardTitle>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleReset}
-                className="h-6 text-xs text-muted-foreground"
-              >
-                Reset
-              </Button>
+              <div className="flex items-center gap-1">
+                {undoSnapshot && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleUndo}
+                    className="h-6 text-xs text-primary"
+                  >
+                    <Undo2 className="w-3 h-3 mr-1" />
+                    Undo
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleReset}
+                  className="h-6 text-xs text-muted-foreground"
+                >
+                  Reset
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="px-4 pb-4 space-y-4">
+            <div className="flex flex-wrap gap-1.5">
+              {(
+                [
+                  { key: "task", label: "Task" },
+                  { key: "role", label: "Role" },
+                  { key: "context", label: "Context" },
+                  { key: "tone", label: "Tone" },
+                  { key: "outputFormat", label: "Format" },
+                ] as const
+              ).map(({ key, label }) => (
+                <Badge
+                  key={key}
+                  variant={(promptData[key] as string)?.trim() ? "default" : "outline"}
+                  className="text-[10px] px-2 py-0 font-normal"
+                >
+                  {label}
+                </Badge>
+              ))}
+            </div>
+
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Task</Label>
+              <Label className="text-xs font-medium text-foreground uppercase tracking-wide">
+                Task <span className="text-primary font-normal normal-case">(start here)</span>
+              </Label>
               <SmartInput
                 value={promptData.task}
                 onChange={handleTaskChange}
-                placeholder="Describe the specific task you want the AI to perform..."
+                placeholder="Type e.g. social media, blog, code review…"
                 suggestions={fieldSuggestions.task}
+                contextText={builderContext}
                 suggestionField="task"
+                maxSuggestions={14}
                 multiline
               />
+              <p className="text-[11px] text-muted-foreground">
+                Suggestions filter as you type. Related fields auto-fill when we recognize the topic.
+              </p>
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Role</Label>
-              <SmartInput
-                value={promptData.role}
-                onChange={handleRoleChange}
-                placeholder="e.g., Software Engineer, Software Architect..."
-                suggestions={fieldSuggestions.role}
-                suggestionField="role"
-              />
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Role</Label>
+                <SmartInput
+                  value={promptData.role}
+                  onChange={handleRoleChange}
+                  placeholder="Who should the AI act as?"
+                  suggestions={fieldSuggestions.role}
+                  contextText={builderContext}
+                  suggestionField="role"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Tone</Label>
+                <SmartInput
+                  value={promptData.tone}
+                  onChange={handleToneChange}
+                  placeholder="How should it sound?"
+                  suggestions={fieldSuggestions.tone}
+                  contextText={builderContext}
+                  suggestionField="tone"
+                />
+              </div>
             </div>
+
             <div className="space-y-1.5">
               <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Context</Label>
               <SmartInput
                 value={promptData.context}
                 onChange={handleContextChange}
-                placeholder="Background information or constraints..."
+                placeholder="Background or situation…"
                 suggestions={fieldSuggestions.context}
+                contextText={builderContext}
                 suggestionField="context"
                 multiline
               />
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Tone</Label>
-              <SmartInput
-                value={promptData.tone}
-                onChange={handleToneChange}
-                placeholder="e.g., Professional, Casual, Friendly..."
-                suggestions={fieldSuggestions.tone}
-                suggestionField="tone"
-              />
-            </div>
+
             <div className="space-y-1.5">
               <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Output Format</Label>
               <SmartInput
                 value={promptData.outputFormat}
                 onChange={handleOutputFormatChange}
-                placeholder="e.g., Markdown, JSON, Bullet Points..."
+                placeholder="What shape should the answer take?"
                 suggestions={fieldSuggestions.outputFormat}
+                contextText={builderContext}
                 suggestionField="outputFormat"
               />
             </div>
@@ -461,7 +726,15 @@ const PromptBuilder = ({
               ]).map(({ label, field, value, onChange, placeholder, suggestions, multiline }) => (
                 <div key={label} className="space-y-1.5">
                   <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{label}</Label>
-                  <SmartInput value={value} onChange={onChange} placeholder={placeholder} suggestions={suggestions} suggestionField={field} multiline={multiline} />
+                  <SmartInput
+                    value={value}
+                    onChange={onChange}
+                    placeholder={placeholder}
+                    suggestions={suggestions}
+                    contextText={builderContext}
+                    suggestionField={field}
+                    multiline={multiline}
+                  />
                 </div>
               ))}
             </CardContent>
@@ -471,6 +744,15 @@ const PromptBuilder = ({
 
       {/* Footer Actions */}
       <div className="shrink-0 px-4 py-3 border-t border-border/20 space-y-2">
+        <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
+          <input
+            type="checkbox"
+            className="rounded border-border"
+            checked={saveAsPublic}
+            onChange={(e) => setSaveAsPublic(e.target.checked)}
+          />
+          Share to Community when saving
+        </label>
         <Button
           variant="ghost"
           size="sm"
@@ -479,6 +761,15 @@ const PromptBuilder = ({
         >
           <Save className="w-3.5 h-3.5 mr-1.5" />
           Save Template
+        </Button>
+        <Button
+          size="sm"
+          className="h-9 w-full text-xs bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
+          disabled={!hasPreviewablePrompt(promptData) && !currentPrompt.trim()}
+          onClick={handleCopyPrompt}
+        >
+          <Copy className="w-3.5 h-3.5 mr-1.5" />
+          Copy prompt for ChatGPT / Claude
         </Button>
         <div className="flex items-center gap-2">
           <Button
@@ -493,22 +784,27 @@ const PromptBuilder = ({
             ) : (
               <Save className="w-3.5 h-3.5 mr-1.5" />
             )}
-            Save to My Prompts
+            {editingPromptId ? "Update" : "Save"}
           </Button>
           <Button
+            variant="outline"
             size="sm"
-            className="h-8 text-xs flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
+            className="h-8 text-xs flex-1 border-dashed"
             disabled={!promptData.task || isGenerating}
             onClick={handleGenerateWithAI}
+            title="Optional — rewrites preview with Gemini"
           >
             {isGenerating ? (
-              <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white mr-1.5" />
+              <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-primary mr-1.5" />
             ) : (
               <Sparkles className="w-3.5 h-3.5 mr-1.5" />
             )}
-            Generate with AI
+            Enhance with AI
           </Button>
         </div>
+        <p className="text-[10px] text-center text-muted-foreground">
+          Structured preview is enough for most tools · AI enhance is optional
+        </p>
       </div>
 
       {/* Template Dialog */}
@@ -519,6 +815,7 @@ const PromptBuilder = ({
         currentPromptData={promptData}
         onLoadTemplate={handleTemplateLoaded}
       />
+      <GeminiApiDialog isOpen={geminiDialogOpen} onClose={() => setGeminiDialogOpen(false)} />
     </div>
   );
 };

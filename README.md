@@ -30,7 +30,9 @@ npm run dev
 | `VITE_API_URL` | Frontend `.env` | API base URL (e.g. `http://localhost:3001/api`) |
 | `MONGODB_URI` | Backend `.env` | MongoDB connection string |
 | `JWT_SECRET` | Backend `.env` | Secret for signing tokens |
-| `GEMINI_API_KEY` | Backend `.env` | Google Gemini API key |
+| `GEMINI_API_KEY` | Backend `.env` | Server key for free hosted AI (daily limits) |
+| `HOSTED_AI_LIMIT_GUEST` | Backend `.env` | Free AI gens/day for guests (default 10) |
+| `HOSTED_AI_LIMIT_AUTH` | Backend `.env` | Free AI gens/day for signed-in users (default 30) |
 | `CORS_ORIGIN` | Backend `.env` | Allowed frontend origins (comma-separated) |
 
 ## Production
