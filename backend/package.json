@@ -7,6 +7,7 @@
     "start": "node dist/server.js",
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
+    "build:render": "npm install --include=dev && npm run build",
     "seed": "tsx src/scripts/seedDatabase.ts",
     "seed:suggestions": "tsx src/scripts/seedFieldSuggestions.ts",
     "lint": "eslint src/**/*.ts"
@@ -32,22 +33,22 @@
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.18.1",
     "morgan": "^1.10.0",
-    "nodemailer": "^8.0.9"
-  },
-  "devDependencies": {
+    "nodemailer": "^8.0.9",
+    "typescript": "~5.4.5",
     "@types/bcryptjs": "^2.4.6",
     "@types/compression": "^1.7.5",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/jsonwebtoken": "^9.0.5",
-    "@types/mongoose": "^5.11.96",
     "@types/morgan": "^1.9.9",
     "@types/node": "^20.10.4",
-    "@types/nodemailer": "^8.0.0",
+    "@types/nodemailer": "^8.0.0"
+  },
+  "devDependencies": {
+    "@types/mongoose": "^5.11.96",
     "@typescript-eslint/eslint-plugin": "^6.13.1",
     "@typescript-eslint/parser": "^6.13.1",
     "eslint": "^8.54.0",
-    "tsx": "^4.6.2",
-    "typescript": "^5.3.2"
+    "tsx": "^4.6.2"
   }
 }
