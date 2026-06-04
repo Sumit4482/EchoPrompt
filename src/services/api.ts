@@ -475,12 +475,16 @@ class ApiService {
 
   // Analytics
   async getOverview(): Promise<ApiResponse<any>> {
-    const response = await fetch(`${API_BASE_URL}/analytics/overview`);
+    const response = await fetch(`${API_BASE_URL}/analytics/overview`, {
+      headers: this.getAuthHeaders(),
+    });
     return this.handleResponse(response);
   }
 
   async getTrending(period: '24h' | '7d' | '30d' = '7d'): Promise<ApiResponse<any>> {
-    const response = await fetch(`${API_BASE_URL}/analytics/trending?period=${period}`);
+    const response = await fetch(`${API_BASE_URL}/analytics/trending?period=${period}`, {
+      headers: this.getAuthHeaders(),
+    });
     return this.handleResponse(response);
   }
 

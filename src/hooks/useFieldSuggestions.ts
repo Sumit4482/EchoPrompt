@@ -9,7 +9,7 @@ import { FIELD_SUGGESTIONS_CACHE_KEY } from '@/lib/suggestionFeedback';
 import { apiService } from '@/services/api';
 
 const CACHE_KEY = FIELD_SUGGESTIONS_CACHE_KEY;
-const SUGGESTION_LIMIT = 300;
+const SUGGESTION_LIMIT = 250;
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
 type PartialSuggestions = Partial<BuilderFieldSuggestions>;
