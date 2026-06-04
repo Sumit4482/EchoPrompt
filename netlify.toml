@@ -2,6 +2,8 @@
   command = "npm run build"
   publish = "dist"
 
+# Required in Netlify UI (build-time): VITE_API_URL=https://YOUR-RENDER-SERVICE.onrender.com/api
+
 [[redirects]]
   from = "/*"
   to = "/index.html"

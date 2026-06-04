@@ -24,7 +24,9 @@ import {
   type PromptDefaults,
 } from "@/lib/promptDefaults";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3001/api";
+import { resolveApiBaseUrl } from "@/services/api";
+
+const API_BASE_URL = resolveApiBaseUrl();
 const STORAGE_KEY = "echoPromptSettings";
 
 const TONE_OPTIONS = ["Professional", "Casual", "Friendly", "Technical", "Creative"] as const;
