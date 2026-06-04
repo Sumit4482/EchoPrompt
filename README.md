@@ -2,6 +2,8 @@
 
 AI prompt builder with template management, Gemini integration, and user accounts.
 
+<img width="1536" height="1024" alt="image" src="https://github.com/user-attachments/assets/b29d90f7-af98-42a7-8459-651102b57148" />
+
 ## Stack
 
 - **Frontend:** React, TypeScript, Vite, Tailwind
