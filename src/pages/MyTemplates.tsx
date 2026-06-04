@@ -217,7 +217,7 @@ const MyTemplates = () => {
     try {
       await apiService.useTemplate(template._id);
       localStorage.setItem("selectedTemplate", JSON.stringify(template));
-      navigate("/?tab=builder");
+      navigate("/");
       toast({ title: "Template loaded", description: `"${template.name}" opened in the builder.` });
     } catch {
       toast({ title: "Error", description: "Failed to load template.", variant: "destructive" });
@@ -248,7 +248,7 @@ const MyTemplates = () => {
   if (isLoading) {
     return (
       <LibraryPageLayout
-        title="My Templates"
+        title="My Blueprints"
         description="Manage and organize your prompt templates"
       >
         <div className="flex h-48 items-center justify-center">
@@ -260,7 +260,7 @@ const MyTemplates = () => {
 
   return (
     <LibraryPageLayout
-      title="My Templates"
+      title="My Blueprints"
       description="Manage and organize your prompt templates"
     >
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center">

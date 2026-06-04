@@ -59,6 +59,11 @@ export const STATIC_FIELD_SUGGESTIONS: BuilderFieldSuggestions = {
     'Plan database migration with zero downtime',
   ],
   context: [
+    'Multi-platform social media campaign',
+    'Product launch with tight deadline',
+    'SEO-optimized content for website',
+    'B2B SaaS onboarding flow',
+    'E-commerce mobile application',
     'Node.js TypeScript microservice on AWS',
     'React SPA with REST backend',
     'Legacy monolith being split into services',
@@ -66,6 +71,10 @@ export const STATIC_FIELD_SUGGESTIONS: BuilderFieldSuggestions = {
     'CI/CD via GitHub Actions',
     'PostgreSQL with read replicas',
     'Team follows trunk-based development',
+    'Regulated fintech environment',
+    'Healthcare HIPAA compliance requirements',
+    'Real-time data streaming pipeline',
+    'Greenfield MVP with small engineering team',
   ],
   tone: [
     'Casual',

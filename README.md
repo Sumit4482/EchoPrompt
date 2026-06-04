@@ -53,4 +53,7 @@ Set `CORS_ORIGIN` and `VITE_API_URL` to your deployed URLs before going live.
 | `npm run dev` | Start frontend dev server |
 | `npm run build` | Build frontend for production |
 | `cd backend && npm run dev` | Start backend with hot reload |
-| `cd backend && npm run seed` | Seed database with sample data |
+| `cd backend && npm run seed` | Seed users, templates, prompts |
+| `cd backend && npm run seed:suggestions` | Seed field suggestion catalog |
+
+See [PRODUCT.md](./PRODUCT.md) for product rules.

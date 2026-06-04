@@ -1,7 +1,7 @@
 import { apiService, PromptData } from '@/services/api';
 import { BuilderSuggestionField } from '@/constants/builderSuggestions';
 
-export const FIELD_SUGGESTIONS_CACHE_KEY = 'echoprompt_field_suggestions_v3';
+export const FIELD_SUGGESTIONS_CACHE_KEY = 'echoprompt_field_suggestions_v4';
 
 export function invalidateFieldSuggestionsCache(): void {
   try {

@@ -35,6 +35,9 @@ const StarRating = ({
   const isOwner =
     Boolean(user?.id && ownerId && user.id.toString() === ownerId.toString());
 
+  const showAverage = count >= 3;
+  const roundedDisplay = Math.round(displayAvg);
+
   if (isOwner) {
     return (
       <p className="text-xs text-muted-foreground">Your prompt — ratings from others only</p>
@@ -72,32 +75,39 @@ const StarRating = ({
       {count === 0 && (
         <p className="text-xs text-muted-foreground">No ratings yet — be the first</p>
       )}
-      <div className="flex items-center gap-2">
-      <div className="flex items-center" onMouseLeave={() => setHover(0)}>
-        {[1, 2, 3, 4, 5].map((value) => (
-          <button
-            key={value}
-            type="button"
-            disabled={isSubmitting}
-            className="p-0.5 text-muted-foreground hover:text-amber-400 disabled:opacity-50"
-            onMouseEnter={() => setHover(value)}
-            onClick={() => handleRate(value)}
-            aria-label={`Rate ${value} stars`}
-          >
-            <Star
-              className={cn(
-                iconClass,
-                (hover || Math.round(displayAvg)) >= value && "fill-amber-400 text-amber-400",
-              )}
-            />
-          </button>
-        ))}
-      </div>
-      {count > 0 && (
-        <span className="text-xs text-muted-foreground">
-          {displayAvg.toFixed(1)} ({count})
-        </span>
+      {count > 0 && count < 3 && (
+        <p className="text-xs text-muted-foreground">
+          Early ratings — {count} rating{count === 1 ? "" : "s"} (average shows at 3+)
+        </p>
       )}
+      <div className="flex items-center gap-2">
+        <div className="flex items-center" onMouseLeave={() => setHover(0)}>
+          {[1, 2, 3, 4, 5].map((value) => (
+            <button
+              key={value}
+              type="button"
+              disabled={isSubmitting}
+              className="p-0.5 text-muted-foreground hover:text-amber-400 disabled:opacity-50"
+              onMouseEnter={() => setHover(value)}
+              onClick={() => handleRate(value)}
+              aria-label={`Rate ${value} stars`}
+            >
+              <Star
+                className={cn(
+                  iconClass,
+                  (hover || (showAverage ? roundedDisplay : 0)) >= value &&
+                    "fill-amber-400 text-amber-400",
+                )}
+              />
+            </button>
+          ))}
+        </div>
+        {count > 0 && (
+          <span className="text-xs text-muted-foreground">
+            {showAverage ? `${displayAvg.toFixed(1)} · ` : ""}
+            {count} rating{count === 1 ? "" : "s"}
+          </span>
+        )}
       </div>
     </div>
   );

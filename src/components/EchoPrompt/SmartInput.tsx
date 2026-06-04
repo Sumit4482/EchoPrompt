@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo, useId } from "react";
+import { createPortal } from "react-dom";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -6,19 +7,20 @@ import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BuilderSuggestionField } from "@/constants/builderSuggestions";
 import { trackSuggestionSelect } from "@/lib/suggestionFeedback";
-import { rankSuggestions } from "@/lib/suggestionRanking";
+import { getInlineCompletion, rankSuggestions } from "@/lib/suggestionRanking";
 
 interface SmartInputProps {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
   suggestions?: string[];
-  /** Task + role text — boosts suggestions when this field is empty or being typed */
   contextText?: string;
   multiline?: boolean;
   className?: string;
   maxSuggestions?: number;
   suggestionField?: BuilderSuggestionField;
+  /** Google-like: inline ghost text, suggestions from 1st character, word-by-word match */
+  googleStyle?: boolean;
 }
 
 function HighlightMatch({ text, query }: { text: string; query: string }) {
@@ -40,6 +42,13 @@ function HighlightMatch({ text, query }: { text: string; query: string }) {
   );
 }
 
+type DropdownPosition = {
+  top: number;
+  left: number;
+  width: number;
+  maxHeight: number;
+};
+
 const SmartInput = ({
   value = "",
   onChange,
@@ -50,30 +59,44 @@ const SmartInput = ({
   className,
   maxSuggestions = 10,
   suggestionField,
+  googleStyle = false,
 }: SmartInputProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
+  const [dropdownPos, setDropdownPos] = useState<DropdownPosition | null>(null);
+  const portalId = useId();
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  const rankOptions = useMemo(
+    () => ({
+      context: contextText,
+      googleStyle,
+      minScore: googleStyle ? (value.trim().length >= 1 ? 40 : 0) : value.trim().length >= 2 ? 50 : 0,
+    }),
+    [contextText, googleStyle, value],
+  );
+
   const filteredSuggestions = useMemo(
-    () =>
-      rankSuggestions(suggestions, value, {
-        context: contextText,
-        minScore: value.trim().length >= 2 ? 50 : 0,
-      }).slice(0, maxSuggestions),
-    [suggestions, value, contextText, maxSuggestions],
+    () => rankSuggestions(suggestions, value, rankOptions).slice(0, maxSuggestions),
+    [suggestions, value, rankOptions, maxSuggestions],
   );
 
   const browseWhenEmpty = useMemo(
-    () =>
-      rankSuggestions(suggestions, "", { context: contextText }).slice(0, maxSuggestions),
-    [suggestions, contextText, maxSuggestions],
+    () => rankSuggestions(suggestions, "", { context: contextText, googleStyle }).slice(0, maxSuggestions),
+    [suggestions, contextText, googleStyle, maxSuggestions],
   );
 
   const displayList =
     value.trim() && filteredSuggestions.length === 0 ? browseWhenEmpty : filteredSuggestions;
+
+  const topSuggestion = displayList[0];
+
+  const inlineSuffix = useMemo(() => {
+    if (!googleStyle || !isFocused || selectedIndex >= 0) return null;
+    return getInlineCompletion(value, topSuggestion);
+  }, [googleStyle, isFocused, selectedIndex, value, topSuggestion]);
 
   const showNoExactMatch =
     value.trim().length >= 2 && filteredSuggestions.length === 0 && browseWhenEmpty.length > 0;
@@ -82,23 +105,60 @@ const SmartInput = ({
     isOpen &&
     isFocused &&
     suggestions.length > 0 &&
-    (value.trim() === "" || displayList.length > 0);
+    (googleStyle ? displayList.length > 0 : value.trim() === "" || displayList.length > 0);
+
+  const highlightQuery = value.trim();
+
+  const updateDropdownPosition = useCallback(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const gap = 6;
+    const spaceBelow = window.innerHeight - rect.bottom - gap - 16;
+    const spaceAbove = rect.top - gap - 16;
+    const openUp = spaceBelow < 180 && spaceAbove > spaceBelow;
+    const maxHeight = Math.min(280, Math.max(120, openUp ? spaceAbove : spaceBelow));
+
+    setDropdownPos({
+      left: rect.left,
+      width: rect.width,
+      maxHeight,
+      top: openUp ? rect.top - gap - maxHeight : rect.bottom + gap,
+    });
+  }, []);
 
   useEffect(() => {
     setSelectedIndex(-1);
   }, [value, displayList.length]);
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-        setIsFocused(false);
-      }
+    if (!showDropdown) {
+      setDropdownPos(null);
+      return;
+    }
+    updateDropdownPosition();
+    const onScrollOrResize = () => updateDropdownPosition();
+    window.addEventListener("resize", onScrollOrResize);
+    window.addEventListener("scroll", onScrollOrResize, true);
+    return () => {
+      window.removeEventListener("resize", onScrollOrResize);
+      window.removeEventListener("scroll", onScrollOrResize, true);
+    };
+  }, [showDropdown, updateDropdownPosition, displayList.length]);
+
+  useEffect(() => {
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (containerRef.current?.contains(target)) return;
+      const portal = document.getElementById(portalId);
+      if (portal?.contains(target)) return;
+      setIsOpen(false);
+      setIsFocused(false);
     };
 
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [portalId]);
 
   const openSuggestions = useCallback(() => {
     if (suggestions.length > 0) setIsOpen(true);
@@ -125,8 +185,32 @@ const SmartInput = ({
     [onChange, suggestionField],
   );
 
+  const acceptInlineCompletion = useCallback(() => {
+    if (!topSuggestion || !inlineSuffix) return false;
+    onChange(topSuggestion);
+    if (suggestionField) {
+      trackSuggestionSelect(suggestionField, topSuggestion);
+    }
+    setIsOpen(false);
+    setSelectedIndex(-1);
+    return true;
+  }, [inlineSuffix, onChange, suggestionField, topSuggestion]);
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
+      if (googleStyle && (e.key === "Tab" || e.key === "ArrowRight") && inlineSuffix) {
+        const el = inputRef.current;
+        const atEnd =
+          el &&
+          "selectionStart" in el &&
+          (el.selectionStart === value.length && el.selectionEnd === value.length);
+        if (atEnd && selectedIndex < 0) {
+          e.preventDefault();
+          acceptInlineCompletion();
+          return;
+        }
+      }
+
       if (e.key === "ArrowDown") {
         if (!isOpen && suggestions.length > 0) {
           e.preventDefault();
@@ -153,14 +237,92 @@ const SmartInput = ({
         setSelectedIndex(-1);
       }
     },
-    [displayList, handleSuggestionSelect, isOpen, selectedIndex, suggestions.length],
+    [
+      acceptInlineCompletion,
+      displayList,
+      googleStyle,
+      handleSuggestionSelect,
+      inlineSuffix,
+      isOpen,
+      selectedIndex,
+      suggestions.length,
+      value.length,
+    ],
   );
 
   const InputComponent = multiline ? Textarea : Input;
 
+  const inputPadding = cn(
+    "rounded-xl border-border/25 transition-all duration-200",
+    "hover:border-border/40 focus:border-primary/30 focus:ring-2 focus:ring-primary/10",
+    "placeholder:text-muted-foreground/50 text-sm leading-relaxed",
+    suggestions.length > 0 && "pr-9",
+    multiline && "min-h-[88px] resize-none",
+    !multiline && "h-10",
+    showDropdown && "ring-2 ring-primary/15 border-primary/30",
+    googleStyle && inlineSuffix ? "bg-transparent relative z-[1]" : "bg-background/40 focus:bg-background/60",
+    className,
+  );
+
+  const dropdownPanel =
+    showDropdown && dropdownPos ? (
+      <div
+        id={portalId}
+        role="listbox"
+        style={{
+          position: "fixed",
+          top: dropdownPos.top,
+          left: dropdownPos.left,
+          width: dropdownPos.width,
+          maxHeight: dropdownPos.maxHeight,
+          zIndex: 9999,
+        }}
+        className="rounded-xl border border-border/40 bg-popover shadow-xl overflow-y-auto overscroll-contain"
+      >
+        {showNoExactMatch && (
+          <div className="px-3 py-2 text-xs text-muted-foreground border-b border-border/20 bg-muted/30 sticky top-0">
+            Suggestions
+          </div>
+        )}
+        {displayList.map((suggestion, index) => (
+          <button
+            key={`${suggestion}-${index}`}
+            type="button"
+            role="option"
+            aria-selected={selectedIndex === index}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => handleSuggestionSelect(suggestion)}
+            className={cn(
+              "w-full text-left px-3 py-2.5 text-sm transition-colors block",
+              "text-muted-foreground hover:bg-accent hover:text-foreground",
+              selectedIndex === index && "bg-accent text-foreground",
+            )}
+          >
+            <HighlightMatch text={suggestion} query={highlightQuery} />
+          </button>
+        ))}
+      </div>
+    ) : null;
+
   return (
-    <div ref={containerRef} className="relative">
+    <div ref={containerRef} className="relative isolate">
       <div className="relative">
+        {googleStyle && (
+          <div
+            aria-hidden
+            className={cn(
+              "pointer-events-none absolute inset-0 z-0 overflow-hidden rounded-xl",
+              "border border-transparent px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap break-words",
+              multiline ? "min-h-[88px]" : "flex items-center min-h-10",
+            )}
+          >
+            <span className="invisible">{value}</span>
+            {inlineSuffix ? (
+              <span className="text-muted-foreground/45">{inlineSuffix}</span>
+            ) : null}
+          </div>
+        )}
+
         <InputComponent
           ref={inputRef as React.Ref<HTMLInputElement & HTMLTextAreaElement>}
           value={value}
@@ -172,21 +334,20 @@ const SmartInput = ({
           }}
           onBlur={() => {
             window.setTimeout(() => {
-              if (!containerRef.current?.contains(document.activeElement)) {
+              const portal = document.getElementById(portalId);
+              if (
+                !containerRef.current?.contains(document.activeElement) &&
+                !portal?.contains(document.activeElement)
+              ) {
                 setIsFocused(false);
               }
             }, 120);
           }}
           placeholder={placeholder}
-          className={cn(
-            "bg-input/80 backdrop-blur-sm border-border/60 transition-all duration-300",
-            "hover:border-primary/50 focus:border-primary focus:bg-input/90",
-            "placeholder:text-muted-foreground/60",
-            suggestions.length > 0 && "pr-8",
-            multiline && "min-h-[80px] resize-none",
-            className,
-          )}
+          className={inputPadding}
           autoComplete="off"
+          autoCorrect="off"
+          spellCheck={false}
         />
 
         {suggestions.length > 0 && (
@@ -202,7 +363,7 @@ const SmartInput = ({
               setIsOpen((open) => !open);
             }}
             className={cn(
-              "absolute right-2 h-6 w-6 p-0 text-muted-foreground hover:text-foreground",
+              "absolute right-2 h-6 w-6 p-0 z-[2] text-muted-foreground hover:text-foreground",
               multiline ? "top-2" : "top-1/2 -translate-y-1/2",
             )}
           >
@@ -211,35 +372,15 @@ const SmartInput = ({
         )}
       </div>
 
-      {showDropdown && (
-        <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-popover/95 backdrop-blur-lg border border-border/50 rounded-lg shadow-elegant max-h-80 overflow-y-auto">
-          {showNoExactMatch && (
-            <div className="px-3 py-2 text-xs text-muted-foreground border-b border-border/30 bg-muted/15">
-              No exact match — related picks for your task:
-            </div>
-          )}
-
-          {displayList.map((suggestion, index) => (
-            <button
-              key={`${suggestion}-${index}`}
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => handleSuggestionSelect(suggestion)}
-              className={cn(
-                "w-full text-left px-3 py-2 hover:bg-accent/50 transition-colors duration-200 text-sm text-muted-foreground",
-                selectedIndex === index && "bg-accent/50",
-              )}
-            >
-              <HighlightMatch text={suggestion} query={value.trim() || contextText.split(" ").slice(-1)[0] || ""} />
-            </button>
-          ))}
-
-          <div className="px-3 py-1 text-xs text-muted-foreground border-t border-border/30 bg-muted/20">
-            <span className="font-medium">↑↓</span> navigate ·
-            <span className="font-medium"> Enter</span> select
-          </div>
-        </div>
+      {googleStyle && isFocused && inlineSuffix && (
+        <p className="text-[10px] text-muted-foreground/60 mt-1 px-0.5">
+          Tab or → to autocomplete · ↑↓ to pick
+        </p>
       )}
+
+      {typeof document !== "undefined" && dropdownPanel
+        ? createPortal(dropdownPanel, document.body)
+        : null}
     </div>
   );
 };

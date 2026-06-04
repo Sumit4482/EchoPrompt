@@ -299,6 +299,11 @@ button:active:not(:disabled),
                 border-color 0.18s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
+  /* Builder tab — calm dual-panel canvas */
+  .builder-workspace {
+    background: radial-gradient(ellipse 120% 80% at 50% -20%, hsl(217 91% 60% / 0.06), transparent 55%);
+  }
+
   /* Panel divider */
   .panel-divider {
     @apply w-px bg-border relative;

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { apiService, User } from '../services/api';
+import { clearPromptDraft, clearEditingPromptId } from '@/lib/promptDraft';
 
 interface AuthContextType {
   user: User | null;
@@ -96,6 +97,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const logout = () => {
     apiService.logout();
+    clearPromptDraft();
+    clearEditingPromptId();
+    localStorage.removeItem('selectedTemplate');
+    localStorage.removeItem('selectedPrompt');
     setUser(null);
   };
 

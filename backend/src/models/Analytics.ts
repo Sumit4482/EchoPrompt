@@ -12,12 +12,13 @@ const analyticsSchema = new Schema<IAnalytics>({
     required: [true, 'Event type is required'],
     enum: [
       'prompt_generated',
+      'prompt_saved',
       'template_created',
       'template_used',
       'prompt_copied',
       'prompt_exported',
       'ai_generation_success',
-      'ai_generation_fallback'
+      'ai_generation_fallback',
     ],
   },
   metadata: {

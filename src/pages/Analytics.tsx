@@ -49,7 +49,7 @@ const Analytics = () => {
       <Header />
       <LibraryPageLayout
         title="Analytics"
-        description="Platform stats, your activity, trending content, and leaderboard."
+        description="Admin overview: platform stats, trending content, and leaderboard."
       >
         {isLoading ? (
           <p className="text-sm text-muted-foreground">Loading analytics...</p>

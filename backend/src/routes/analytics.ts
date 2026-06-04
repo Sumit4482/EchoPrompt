@@ -8,6 +8,7 @@ import { authenticate, optionalAuth } from '../middleware/auth';
 import { requireAdmin } from '../middleware/requireAdmin';
 import { AuthenticatedRequest, ApiResponse } from '../types';
 import { getFieldSuggestions } from '../utils/suggestionAggregator';
+import { parseSuggestionSearchQuery, searchFieldSuggestions } from '../utils/suggestionSearch';
 import { SUGGESTION_FIELDS } from '../constants/suggestionFields';
 import {
   isSuggestionField,
@@ -17,6 +18,42 @@ import {
 } from '../services/suggestionRecorder';
 
 const router = express.Router();
+
+const PRODUCT_EVENT_TYPES = [
+  'prompt_copied',
+  'template_used',
+  'prompt_saved',
+] as const;
+
+// @route   POST /api/analytics/events
+// @desc    Record product funnel events (copy, blueprint use, save)
+// @access  Public (optional auth)
+router.post('/events', optionalAuth, [
+  body('eventType').isIn([...PRODUCT_EVENT_TYPES]).withMessage('Invalid event type'),
+  body('metadata').optional().isObject(),
+], async (req: AuthenticatedRequest, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, error: 'Validation failed', details: errors.array() } as ApiResponse);
+    }
+
+    const { eventType, metadata = {} } = req.body;
+
+    await Analytics.logEvent({
+      userId: req.user?._id,
+      eventType,
+      metadata,
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent'),
+    });
+
+    res.status(201).json({ success: true, message: 'Event recorded' } as ApiResponse);
+  } catch (error) {
+    console.error('Track product event error:', error);
+    res.status(500).json({ success: false, error: 'Server error' } as ApiResponse);
+  }
+});
 
 // @route   GET /api/analytics/suggestions
 // @desc    Popular field values from templates & prompts (for builder autocomplete)
@@ -36,6 +73,33 @@ router.get('/suggestions', [
     res.json({ success: true, data } as ApiResponse);
   } catch (error) {
     console.error('Get field suggestions error:', error);
+    res.status(500).json({ success: false, error: 'Server error' } as ApiResponse);
+  }
+});
+
+// @route   GET /api/analytics/suggestions/search
+// @desc    Typeahead search across catalog + DB (Google-style as user types)
+// @access  Public
+router.get('/suggestions/search', [
+  query('field').isString().trim().notEmpty(),
+  query('q').isString().trim().isLength({ min: 1, max: 120 }),
+  query('limit').optional().isInt({ min: 1, max: 50 }),
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, error: 'Validation failed', details: errors.array() } as ApiResponse);
+    }
+
+    const parsed = parseSuggestionSearchQuery(req.query.field, req.query.q, req.query.limit);
+    if (!parsed) {
+      return res.status(400).json({ success: false, error: 'Invalid field or query' } as ApiResponse);
+    }
+
+    const data = await searchFieldSuggestions(parsed.field, parsed.query, parsed.limit);
+    res.json({ success: true, data } as ApiResponse);
+  } catch (error) {
+    console.error('Search field suggestions error:', error);
     res.status(500).json({ success: false, error: 'Server error' } as ApiResponse);
   }
 });

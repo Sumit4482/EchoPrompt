@@ -64,7 +64,7 @@ const TemplateDialog = ({ isOpen, onClose, mode, currentPromptData, onLoadTempla
     if (!templateName.trim()) {
       toast({
         title: "Error",
-        description: "Please enter a template name",
+        description: "Please enter a blueprint name",
         variant: "destructive",
       });
       return;
@@ -73,7 +73,7 @@ const TemplateDialog = ({ isOpen, onClose, mode, currentPromptData, onLoadTempla
     if (!currentPromptData?.task) {
       toast({
         title: "Error", 
-        description: "Cannot save template: No task specified",
+        description: "Cannot save: add a task first",
         variant: "destructive",
       });
       return;
@@ -94,7 +94,7 @@ const TemplateDialog = ({ isOpen, onClose, mode, currentPromptData, onLoadTempla
         trackPromptDataSuggestions(currentPromptData);
         toast({
           title: "Success!",
-          description: `Template "${templateName}" saved successfully`,
+          description: `Blueprint "${templateName}" saved to My Blueprints`,
         });
         onClose();
         setTemplateName('');
@@ -150,19 +150,19 @@ const TemplateDialog = ({ isOpen, onClose, mode, currentPromptData, onLoadTempla
             {mode === 'save' ? (
               <>
                 <Save className="w-5 h-5 mr-2 text-primary" />
-                Save Template
+                Save field recipe
               </>
             ) : (
               <>
                 <FolderOpen className="w-5 h-5 mr-2 text-primary" />
-                Load Template
+                Load field recipe
               </>
             )}
           </DialogTitle>
           <DialogDescription>
             {mode === 'save' 
-              ? "Save your current prompt configuration as a reusable template"
-              : "Choose a template to load into your prompt builder"
+              ? "Save current builder fields to My Blueprints (not the finished prompt text)"
+              : "Load a saved field recipe into the builder"
             }
           </DialogDescription>
         </DialogHeader>

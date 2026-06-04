@@ -119,7 +119,15 @@ export interface IPrompt extends Document {
 export interface IAnalytics extends Document {
   _id: Types.ObjectId;
   userId?: Types.ObjectId;
-  eventType: 'prompt_generated' | 'template_created' | 'template_used' | 'prompt_copied' | 'prompt_exported' | 'ai_generation_success' | 'ai_generation_fallback';
+  eventType:
+    | 'prompt_generated'
+    | 'prompt_saved'
+    | 'template_created'
+    | 'template_used'
+    | 'prompt_copied'
+    | 'prompt_exported'
+    | 'ai_generation_success'
+    | 'ai_generation_fallback';
   metadata: {
     promptId?: Types.ObjectId;
     templateId?: Types.ObjectId;

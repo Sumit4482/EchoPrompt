@@ -128,8 +128,9 @@ router.post('/generate', optionalAuth, [
     try {
       console.log(useOwnKey ? '🤖 Gemini with user API key' : '🤖 Gemini with hosted server key');
       content = await geminiService.generatePrompt(promptData, optimize, apiKeyForGeneration);
+      aiEnhanced = true;
 
-      if (!useOwnKey && aiEnhanced) {
+      if (!useOwnKey) {
         const consumed = await consumeHostedGeneration(usageKey, isAuthenticated);
         hostedMeta = {
           usedHostedKey: true,
@@ -137,16 +138,7 @@ router.post('/generate', optionalAuth, [
           used: consumed.used,
           remaining: consumed.remaining,
         };
-      } else if (!useOwnKey) {
-        const status = await getHostedQuotaStatus(usageKey, isAuthenticated);
-        hostedMeta = {
-          usedHostedKey: true,
-          limit: status.limit,
-          used: status.used,
-          remaining: status.remaining,
-        };
       }
-      aiEnhanced = true;
       console.log('✅ Gemini AI generation successful');
       console.log('📝 Generated content length:', content.length);
     } catch (error) {
@@ -735,6 +727,21 @@ router.post('/save', authenticate, [
     req.user!.usage.promptsGenerated += 1;
     req.user!.usage.lastActivity = new Date();
     await req.user!.save();
+
+    try {
+      await Analytics.logEvent({
+        userId: req.user!._id,
+        eventType: 'prompt_saved',
+        metadata: {
+          promptId: prompt._id as import('mongoose').Types.ObjectId,
+          sessionId: (req as any).sessionID || undefined,
+        },
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+      });
+    } catch (analyticsError) {
+      console.error('Failed to log prompt_saved:', analyticsError);
+    }
 
     res.status(201).json({
       success: true,

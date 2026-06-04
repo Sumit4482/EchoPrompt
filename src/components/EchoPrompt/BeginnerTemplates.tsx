@@ -115,7 +115,7 @@ const BeginnerTemplates: React.FC<BeginnerTemplatesProps> = ({ onTemplateSelect 
         <div className="relative flex-1">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
           <Input
-            placeholder="Search templates..."
+            placeholder="Search blueprints..."
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="pl-8 h-8 text-xs"

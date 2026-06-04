@@ -121,7 +121,7 @@ const SettingsDialog = ({ isOpen, onClose }: SettingsDialogProps) => {
 
       toast({
         title: "Settings saved",
-        description: "Tone and output format updated in the builder.",
+        description: "Empty tone/format fields will use these defaults on your next explicit apply.",
       });
       onClose();
     } catch {

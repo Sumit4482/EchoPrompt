@@ -227,6 +227,20 @@ function buildContextSuggestions(): string[] {
   const phrases = stacks.flatMap((stack) =>
     situations.map((sit) => `Building ${stack} for ${sit}`)
   );
+  const marketingAndGeneral = [
+    'Multi-platform social media campaign',
+    'Product launch with two-week timeline',
+    'SEO blog targeting small business owners',
+    'Email nurture sequence for free trial users',
+    'B2B SaaS sales demo for enterprise buyers',
+    'E-commerce holiday promotion',
+    'Brand refresh for Gen Z audience',
+    'Customer support knowledge base update',
+    'Internal training for non-technical staff',
+    'Competitive analysis for positioning',
+    'User research for mobile onboarding',
+    'Press release for funding announcement',
+  ];
   const extras = [
     'Follow company coding standards',
     'Target Node 20 LTS runtime',
@@ -241,7 +255,7 @@ function buildContextSuggestions(): string[] {
     'Security-first: validate all inputs',
     'Accessibility WCAG 2.1 AA for UI work',
   ];
-  return unique([...phrases.slice(0, 120), ...extras]);
+  return unique([...phrases.slice(0, 120), ...marketingAndGeneral, ...extras]);
 }
 
 const TONE_BASE = [

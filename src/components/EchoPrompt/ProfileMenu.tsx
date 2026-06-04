@@ -90,18 +90,34 @@ const ProfileMenu = ({ onOpenSettings }: ProfileMenuProps) => {
     }
   };
 
-  // Show Login button when not authenticated
   if (!isAuthenticated) {
     return (
-      <Button 
-        variant="ghost" 
-        size="sm" 
-        className="hover-glow"
-        onClick={() => navigate('/login')}
-      >
-        <User className="w-4 h-4 mr-2" />
-        Login
-      </Button>
+      <>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="hover-glow hidden sm:inline-flex"
+            onClick={() => setIsGeminiDialogOpen(true)}
+          >
+            <Key className="w-4 h-4 mr-1.5" />
+            API key
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="hover-glow"
+            onClick={() => navigate('/login')}
+          >
+            <User className="w-4 h-4 mr-2" />
+            Login
+          </Button>
+        </div>
+        <GeminiApiDialog
+          isOpen={isGeminiDialogOpen}
+          onClose={() => setIsGeminiDialogOpen(false)}
+        />
+      </>
     );
   }
 
@@ -146,7 +162,7 @@ const ProfileMenu = ({ onOpenSettings }: ProfileMenuProps) => {
               </div>
               <div className="text-center">
                 <p className="text-lg font-bold text-primary">{profile.templatesCreated}</p>
-                <p className="text-xs text-muted-foreground">Templates</p>
+                <p className="text-xs text-muted-foreground">Blueprints</p>
               </div>
             </div>
           </div>
@@ -198,7 +214,7 @@ const ProfileMenu = ({ onOpenSettings }: ProfileMenuProps) => {
           className="cursor-pointer"
         >
           <Database className="w-4 h-4 mr-2" />
-          <span>My Templates</span>
+          <span>My Blueprints</span>
         </DropdownMenuItem>
         
         <DropdownMenuSeparator />

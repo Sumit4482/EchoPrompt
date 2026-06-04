@@ -27,8 +27,8 @@ router.post('/register', [
     .withMessage('Please provide a valid email'),
   body('username')
     .isLength({ min: 3, max: 30 })
-    .matches(/^[a-zA-Z0-9_-]+$/)
-    .withMessage('Username must be 3-30 characters and contain only letters, numbers, underscores, and hyphens'),
+    .matches(/^[a-zA-Z0-9_]+$/)
+    .withMessage('Username must be 3-30 characters and contain only letters, numbers, and underscores'),
   body('password')
     .isLength({ min: 8 })
     .withMessage('Password must be at least 8 characters long'),
@@ -206,8 +206,8 @@ router.put('/profile', authenticate, [
   body('username')
     .optional()
     .isLength({ min: 3, max: 30 })
-    .matches(/^[a-zA-Z0-9_-]+$/)
-    .withMessage('Username must be 3-30 characters and contain only letters, numbers, underscores, and hyphens'),
+    .matches(/^[a-zA-Z0-9_]+$/)
+    .withMessage('Username must be 3-30 characters and contain only letters, numbers, and underscores'),
   body('firstName')
     .optional()
     .isLength({ max: 50 })

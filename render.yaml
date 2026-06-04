@@ -20,6 +20,26 @@ services:
         sync: false
       - key: GEMINI_API_KEY
         sync: false
+      - key: ADMIN_EMAILS
+        value: sbanwakde4482@gmail.com
+      - key: FRONTEND_URL
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_SECURE
+        value: "false"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      - key: HOSTED_AI_LIMIT_GUEST
+        value: "10"
+      - key: HOSTED_AI_LIMIT_AUTH
+        value: "30"
 
   - type: web
     name: echoprompt-frontend

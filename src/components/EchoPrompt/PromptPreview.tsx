@@ -1,10 +1,16 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Copy, Download, Eye, Edit3 } from "lucide-react";
+import { Copy, FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
 interface PromptPreviewProps {
   prompt: string;
@@ -16,85 +22,47 @@ const PromptPreview = ({ prompt, onPromptChange }: PromptPreviewProps) => {
   const { toast } = useToast();
 
   const handlePromptEdit = (newValue: string) => {
-    if (onPromptChange) {
-      // If editing formatted content, try to extract the original prompt
-      let actualPrompt = newValue;
-      
-      if (activeTab === "markdown") {
-        // Remove markdown formatting to get back to plain text
-        actualPrompt = newValue
-          .replace(/^# AI Prompt\n\n/, '')
-          .replace(/\n\n---\n\*Generated with EchoPrompt\*$/, '');
-      } else if (activeTab === "json") {
-        // Try to parse JSON and extract the prompt field
-        try {
-          const parsed = JSON.parse(newValue);
-          actualPrompt = parsed.prompt || newValue;
-        } catch {
-          // If JSON is invalid, keep the raw text
-          actualPrompt = newValue;
-        }
-      } else if (activeTab === "table") {
-        // Remove numbering from table format
-        actualPrompt = newValue
-          .split('\n')
-          .map(line => line.replace(/^\d+\.\s/, ''))
-          .join('\n');
+    if (!onPromptChange) return;
+    let actualPrompt = newValue;
+
+    if (activeTab === "markdown") {
+      actualPrompt = newValue
+        .replace(/^# AI Prompt\n\n/, "")
+        .replace(/\n\n---\n\*Generated with EchoPrompt\*$/, "");
+    } else if (activeTab === "json") {
+      try {
+        const parsed = JSON.parse(newValue);
+        actualPrompt = parsed.prompt || newValue;
+      } catch {
+        actualPrompt = newValue;
       }
-      
-      onPromptChange(actualPrompt);
+    } else if (activeTab === "table") {
+      actualPrompt = newValue
+        .split("\n")
+        .map((line) => line.replace(/^\d+\.\s/, ""))
+        .join("\n");
     }
+
+    onPromptChange(actualPrompt);
   };
 
   const handleCopy = () => {
     navigator.clipboard.writeText(prompt);
-    toast({
-      title: "Copied!",
-      description: "Prompt copied to clipboard",
-    });
+    toast({ title: "Copied", description: "Ready to paste into your AI tool." });
   };
 
-  const handleExport = (format: string) => {
-    const blob = new Blob([prompt], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `echoprompt.${format}`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    
-    toast({
-      title: "Exported!",
-      description: `Prompt exported as ${format.toUpperCase()}`,
-    });
-  };
+  const formatPromptAsMarkdown = (text: string) =>
+    `# AI Prompt\n\n${text}\n\n---\n*Generated with EchoPrompt*`;
 
-  const formatPromptAsMarkdown = (text: string) => {
-    if (!text) return "";
-    return `# AI Prompt
+  const formatPromptAsJSON = (text: string) =>
+    JSON.stringify({ prompt: text, created_at: new Date().toISOString(), generator: "EchoPrompt" }, null, 2);
 
-${text}
-
----
-*Generated with EchoPrompt*`;
-  };
-
-  const formatPromptAsJSON = (text: string) => {
-    if (!text) return "{}";
-    return JSON.stringify({
-      prompt: text,
-      created_at: new Date().toISOString(),
-      generator: "EchoPrompt"
-    }, null, 2);
-  };
-
-  const formatPromptAsTable = (text: string) => {
-    if (!text) return "";
-    const lines = text.split('\n').filter(line => line.trim());
-    return lines.map((line, index) => `${index + 1}. ${line}`).join('\n');
-  };
+  const formatPromptAsTable = (text: string) =>
+    text
+      .split("\n")
+      .filter((line) => line.trim())
+      .map((line, index) => `${index + 1}. ${line}`)
+      .join("\n");
 
   const getFormattedContent = () => {
     switch (activeTab) {
@@ -109,86 +77,68 @@ ${text}
     }
   };
 
+  const wordCount = prompt.trim() ? prompt.trim().split(/\s+/).length : 0;
+
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="shrink-0 px-4 py-3 border-b border-border/30 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Eye className="w-4 h-4 text-muted-foreground" />
-          <span className="text-sm font-medium">Preview</span>
-          {prompt && (
-            <Badge variant="secondary" className="text-xs h-5 px-1.5">
-              Editable
-            </Badge>
-          )}
+      <div className="shrink-0 px-4 py-3 border-b border-border/15 flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-medium text-foreground/90">Your prompt</h2>
+          <p className="text-xs text-muted-foreground/70 mt-0.5">
+            {prompt.trim() ? `${wordCount} words · edits sync live` : "Updates as you compose"}
+          </p>
         </div>
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="h-7 bg-secondary/60">
-            <TabsTrigger value="plain" className="text-xs h-6 px-2">Plain</TabsTrigger>
-            <TabsTrigger value="markdown" className="text-xs h-6 px-2">MD</TabsTrigger>
-            <TabsTrigger value="json" className="text-xs h-6 px-2">JSON</TabsTrigger>
-            <TabsTrigger value="table" className="text-xs h-6 px-2">Table</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        {prompt.trim() ? (
+          <Select value={activeTab} onValueChange={setActiveTab}>
+            <SelectTrigger className="h-8 w-[100px] text-xs rounded-lg border-border/20 bg-muted/20">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="plain">Plain</SelectItem>
+              <SelectItem value="markdown">Markdown</SelectItem>
+              <SelectItem value="json">JSON</SelectItem>
+              <SelectItem value="table">List</SelectItem>
+            </SelectContent>
+          </Select>
+        ) : null}
       </div>
 
-      {/* Preview Content */}
-      <div className="flex-1 overflow-hidden p-4">
-        {prompt ? (
+      <div className="flex-1 overflow-hidden p-3 md:p-4 min-h-0">
+        {prompt.trim() ? (
           <Textarea
             value={getFormattedContent()}
             onChange={(e) => handlePromptEdit(e.target.value)}
-            className="w-full h-full resize-none border border-border/40 bg-muted/20 text-sm font-mono leading-relaxed rounded-lg focus-visible:ring-1"
-            placeholder={`Your ${activeTab} formatted prompt will appear here. You can edit it directly...`}
+            className={cn(
+              "w-full h-full resize-none rounded-2xl border-border/15",
+              "bg-muted/15 text-sm leading-relaxed font-mono",
+              "focus-visible:ring-2 focus-visible:ring-primary/10 focus-visible:border-primary/25",
+            )}
           />
         ) : (
-          <div className="flex items-center justify-center h-full text-center rounded-lg border border-dashed border-border/40">
-            <div className="space-y-2">
-              <div className="w-10 h-10 mx-auto rounded-full bg-muted/50 flex items-center justify-center">
-                <Edit3 className="w-5 h-5 text-muted-foreground" />
+          <div className="flex items-center justify-center h-full rounded-2xl border border-dashed border-border/20 bg-muted/5">
+            <div className="text-center max-w-[220px] space-y-3 px-4">
+              <div className="w-12 h-12 mx-auto rounded-2xl bg-primary/10 flex items-center justify-center">
+                <FileText className="w-6 h-6 text-primary/60" />
               </div>
-              <p className="text-sm text-muted-foreground">
-                Fill in the builder fields to see your prompt here
+              <p className="text-sm text-muted-foreground/80 leading-relaxed">
+                Your structured prompt will appear here as you fill in the builder.
               </p>
             </div>
           </div>
         )}
       </div>
 
-      {/* Export Actions */}
-      <div className="shrink-0 px-4 py-3 border-t border-border/30">
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleCopy}
-            disabled={!prompt}
-            className="flex-1 h-8 text-xs"
-          >
-            <Copy className="w-3.5 h-3.5 mr-1.5" />
-            Copy
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handleExport("txt")}
-            disabled={!prompt}
-            className="flex-1 h-8 text-xs"
-          >
-            <Download className="w-3.5 h-3.5 mr-1.5" />
-            TXT
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handleExport("json")}
-            disabled={!prompt}
-            className="flex-1 h-8 text-xs"
-          >
-            <Download className="w-3.5 h-3.5 mr-1.5" />
-            JSON
-          </Button>
-        </div>
+      <div className="shrink-0 px-4 py-3 border-t border-border/15">
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={handleCopy}
+          disabled={!prompt.trim()}
+          className="w-full h-9 rounded-xl text-xs"
+        >
+          <Copy className="w-3.5 h-3.5 mr-1.5 opacity-70" />
+          Copy
+        </Button>
       </div>
     </div>
   );

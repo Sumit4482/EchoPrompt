@@ -2,48 +2,39 @@ import { useState, useCallback } from "react";
 import GeminiApiDialog from "@/components/EchoPrompt/GeminiApiDialog";
 import { useSearchParams } from "react-router-dom";
 import Header from "@/components/EchoPrompt/Header";
+import DashboardNav from "@/components/EchoPrompt/DashboardNav";
 import PromptBuilder from "@/components/EchoPrompt/PromptBuilder";
 import PromptPreview from "@/components/EchoPrompt/PromptPreview";
 import BeginnerTemplates from "@/components/EchoPrompt/BeginnerTemplates";
 import CommunityHub from "@/components/EchoPrompt/CommunityHub";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Eye, Edit3, Users, Zap } from "lucide-react";
+import { Eye, Edit3 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import GuestBanner from "@/components/EchoPrompt/GuestBanner";
 import AiUsageHint from "@/components/EchoPrompt/AiUsageHint";
 import type { PromptData } from "@/services/api";
 import type { BuilderLoadPayload } from "@/components/EchoPrompt/PromptBuilder";
-
-const DASHBOARD_TABS = ["templates", "builder", "community"] as const;
-type DashboardTab = (typeof DASHBOARD_TABS)[number];
-
-const isDashboardTab = (value: string | null): value is DashboardTab =>
-  value !== null && (DASHBOARD_TABS as readonly string[]).includes(value);
+import { trackProductEvent } from "@/lib/productAnalytics";
+import {
+  resolveDashboardSection,
+  type DashboardSection,
+} from "@/lib/dashboardRoutes";
 
 const Dashboard = () => {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [currentPrompt, setCurrentPrompt] = useState("");
   const [activePanel, setActivePanel] = useState<"builder" | "preview">("builder");
-  const tabParam = searchParams.get("tab");
-  const activeTab: DashboardTab = isDashboardTab(tabParam) ? tabParam : "templates";
+  const activeTab = resolveDashboardSection(searchParams.get("tab"));
 
-  const setActiveTab = (tab: string) => {
-    if (!isDashboardTab(tab)) return;
-    setSearchParams(
-      (prev) => {
-        const next = new URLSearchParams(prev);
-        if (tab === "templates") {
-          next.delete("tab");
-        } else {
-          next.set("tab", tab);
-        }
-        return next;
-      },
-      { replace: true },
-    );
+  const setActiveTab = (tab: DashboardSection) => {
+    if (tab === "builder") {
+      setSearchParams({}, { replace: true });
+    } else {
+      setSearchParams({ tab }, { replace: true });
+    }
   };
+
   const [builderLoad, setBuilderLoad] = useState<BuilderLoadPayload | null>(null);
   const [communityRefreshTrigger, setCommunityRefreshTrigger] = useState(0);
   const [geminiDialogOpen, setGeminiDialogOpen] = useState(false);
@@ -75,8 +66,12 @@ const Dashboard = () => {
     setActivePanel(content?.trim() ? "preview" : "builder");
   };
 
-  const handleTemplateSelect = (template: { promptData: PromptData }) => {
+  const handleTemplateSelect = (template: { promptData: PromptData; _id?: string }) => {
     loadIntoBuilder(template.promptData);
+    trackProductEvent("template_used", {
+      source: "blueprints_tab",
+      templateId: template._id,
+    });
   };
 
   const handlePromptUse = (prompt: { promptData?: PromptData; content?: string }) => {
@@ -85,123 +80,106 @@ const Dashboard = () => {
   };
 
   const handlePromptSaved = () => {
-    // Trigger refresh of community hub when a prompt is saved
-    setCommunityRefreshTrigger(prev => prev + 1);
+    setCommunityRefreshTrigger((prev) => prev + 1);
   };
 
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-background">
       <Header />
 
-      {/* Content below fixed header */}
-      <div className="flex flex-col flex-1 overflow-hidden pt-16">
-        {/* Page subheader */}
-        <div className="shrink-0 px-6 py-3 border-b border-border/30 flex items-center justify-between animate-fade-in">
-          <div>
-            <h1 className="text-base font-semibold tracking-tight">Prompt Builder</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Write a task, use field dropdowns, copy the preview · Blueprints tab for full recipes
-            </p>
-            <div className="mt-1.5">
-              <AiUsageHint />
-            </div>
-          </div>
-        </div>
+      <div className="flex flex-1 min-h-0 overflow-hidden pt-16">
+        <DashboardNav active={activeTab} />
 
-        {/* Tabs + scrollable content */}
-        <div className="flex flex-col flex-1 overflow-hidden px-6">
-          {!authLoading && !isAuthenticated && <GuestBanner />}
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 overflow-hidden min-h-0">
-            <TabsList className="shrink-0 w-full bg-transparent border-b border-border/30 rounded-none h-auto p-0 grid grid-cols-3 gap-0 mt-1">
-              <TabsTrigger
-                value="templates"
-                className="flex items-center justify-center gap-1.5 text-sm rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none h-10 text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <Zap className="w-3.5 h-3.5" />
-                Blueprints
-              </TabsTrigger>
-              <TabsTrigger
-                value="builder"
-                className="flex items-center justify-center gap-1.5 text-sm rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none h-10 text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <Edit3 className="w-3.5 h-3.5" />
-                Builder
-              </TabsTrigger>
-              <TabsTrigger
-                value="community"
-                className="flex items-center justify-center gap-1.5 text-sm rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none h-10 text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <Users className="w-3.5 h-3.5" />
-                Community
-              </TabsTrigger>
-              {/* tab value stays "templates" / "community" for URL compatibility */}
-            </TabsList>
-
-            <TabsContent
-              value="templates"
-              className="flex-1 overflow-y-auto min-h-0 mt-0 pt-4 pb-6 data-[state=inactive]:hidden"
-            >
-              <BeginnerTemplates onTemplateSelect={handleTemplateSelect} />
-            </TabsContent>
-
-            <TabsContent
-              value="builder"
-              className="flex-1 overflow-hidden min-h-0 mt-0 pt-4 pb-20 md:pb-4 data-[state=inactive]:hidden"
-            >
-              <div className="h-full grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div
-                  className={`flex flex-col overflow-hidden rounded-xl border border-border/40 bg-card animate-fade-in ${
-                    activePanel === "preview" ? "hidden lg:flex" : "flex"
-                  }`}
-                >
-                  <PromptBuilder
-                    currentPrompt={currentPrompt}
-                    onPromptChange={handlePromptChange}
-                    builderLoad={builderLoad}
-                    onPromptSaved={handlePromptSaved}
-                    onBuilderReset={handleBuilderReset}
-                    onBuilderUndo={handleBuilderUndo}
-                    onGenerated={() => setActivePanel("preview")}
-                  />
+        <main className="flex flex-1 flex-col min-w-0 min-h-0 overflow-hidden">
+          {activeTab === "templates" && (
+            <>
+              {!authLoading && !isAuthenticated && (
+                <div className="shrink-0 px-4 pt-3">
+                  <GuestBanner />
                 </div>
-                <div
-                  className={`flex flex-col overflow-hidden rounded-xl border border-border/40 bg-card animate-fade-in stagger-1 ${
-                    activePanel === "builder" ? "hidden lg:flex" : "flex"
-                  }`}
-                >
-                  <PromptPreview prompt={currentPrompt} onPromptChange={handlePromptChange} />
+              )}
+              <div className="flex-1 overflow-y-auto min-h-0 px-4 md:px-5 py-4">
+                <BeginnerTemplates onTemplateSelect={handleTemplateSelect} />
+              </div>
+            </>
+          )}
+
+          {activeTab === "builder" && (
+            <div className="flex flex-1 flex-col min-h-0 overflow-hidden builder-workspace">
+              {!authLoading && !isAuthenticated && (
+                <div className="shrink-0 px-3 pt-2 md:px-4">
+                  <GuestBanner compact />
+                </div>
+              )}
+              <div className="shrink-0 px-4 py-1.5 border-b border-border/10">
+                <AiUsageHint onConfigureKey={() => setGeminiDialogOpen(true)} />
+              </div>
+
+              <div className="flex-1 min-h-0 flex flex-col p-2 md:p-3 pb-[4.5rem] md:pb-3">
+                <div className="flex-1 min-h-[280px] grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-3">
+                  <div
+                    className={`flex flex-col min-h-0 overflow-hidden rounded-2xl border border-border/15 bg-card/40 backdrop-blur-sm shadow-sm ${
+                      activePanel === "preview" ? "hidden md:flex" : "flex"
+                    }`}
+                  >
+                    <PromptBuilder
+                      currentPrompt={currentPrompt}
+                      onPromptChange={handlePromptChange}
+                      builderLoad={builderLoad}
+                      onPromptSaved={handlePromptSaved}
+                      onBuilderReset={handleBuilderReset}
+                      onBuilderUndo={handleBuilderUndo}
+                      onGenerated={() => setActivePanel("preview")}
+                      onOpenGeminiKey={() => setGeminiDialogOpen(true)}
+                    />
+                  </div>
+                  <div
+                    className={`flex flex-col min-h-0 overflow-hidden rounded-2xl border border-border/15 bg-card/40 backdrop-blur-sm shadow-sm ${
+                      activePanel === "builder" ? "hidden md:flex" : "flex"
+                    }`}
+                  >
+                    <PromptPreview prompt={currentPrompt} onPromptChange={handlePromptChange} />
+                  </div>
                 </div>
               </div>
-            </TabsContent>
+            </div>
+          )}
 
-            <TabsContent
-              value="community"
-              className="flex-1 overflow-y-auto min-h-0 mt-0 pt-4 pb-6 data-[state=inactive]:hidden"
-            >
-              <CommunityHub onPromptUse={handlePromptUse} refreshTrigger={communityRefreshTrigger} />
-            </TabsContent>
-          </Tabs>
-        </div>
+          {activeTab === "community" && (
+            <>
+              {!authLoading && !isAuthenticated && (
+                <div className="shrink-0 px-4 pt-3">
+                  <GuestBanner />
+                </div>
+              )}
+              <div className="flex-1 overflow-y-auto min-h-0 px-4 md:px-5 py-4">
+                <CommunityHub
+                  onPromptUse={handlePromptUse}
+                  refreshTrigger={communityRefreshTrigger}
+                />
+              </div>
+            </>
+          )}
+        </main>
       </div>
 
-      {/* Mobile Panel Toggle */}
       {activeTab === "builder" && (
-        <div className="md:hidden fixed bottom-4 left-4 right-4 z-40">
-          <div className="flex rounded-lg bg-card/95 backdrop-blur-sm border border-border/50 p-1 shadow-xl">
+        <div className="md:hidden fixed bottom-3 left-[4.75rem] right-3 z-40">
+          <div className="flex rounded-2xl bg-card/90 backdrop-blur-md border border-border/20 p-1 shadow-lg">
             <Button
               variant={activePanel === "builder" ? "default" : "ghost"}
               size="sm"
               onClick={() => setActivePanel("builder")}
-              className="flex-1 rounded-md h-8 text-xs"
+              className="flex-1 rounded-xl h-8 text-xs"
             >
               <Edit3 className="w-3.5 h-3.5 mr-1.5" />
-              Builder
+              Compose
             </Button>
             <Button
               variant={activePanel === "preview" ? "default" : "ghost"}
               size="sm"
               onClick={() => setActivePanel("preview")}
-              className="flex-1 rounded-md h-8 text-xs"
+              className="flex-1 rounded-xl h-8 text-xs"
             >
               <Eye className="w-3.5 h-3.5 mr-1.5" />
               Preview

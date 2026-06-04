@@ -2,17 +2,20 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { ChevronDown, ChevronUp, Sparkles, Save, Settings, Undo2, Copy, MoreHorizontal } from "lucide-react";
+import BuilderField from "./BuilderField";
+import BuilderProgress from "./BuilderProgress";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { ChevronDown, ChevronUp, Sparkles, Save, Zap, Settings, Undo2, Copy } from "lucide-react";
 import { buildPromptText, hasPreviewablePrompt } from "@/lib/buildPromptText";
 import { useToast } from "@/hooks/use-toast";
 import { apiService, PromptData } from "@/services/api";
-import SmartInput from "./SmartInput";
 import TemplateDialog from "./TemplateDialog";
 import KeyboardShortcuts from "./KeyboardShortcuts";
 import { useAI } from "@/contexts/AIContext";
@@ -20,11 +23,11 @@ import { useContextualFieldSuggestions } from "@/hooks/useContextualFieldSuggest
 import { findTaskBundleMatch } from "@/lib/contextualSuggestions";
 import { fillEmptyFromBundle, applyTaskFieldBundle } from "@/constants/taskFieldBundles";
 import { trackPromptDataSuggestions } from "@/lib/suggestionFeedback";
+import { trackProductEvent } from "@/lib/productAnalytics";
 import { BuilderSuggestionField } from "@/constants/builderSuggestions";
 import {
   PROMPT_DEFAULTS_UPDATED,
   readPromptDefaults,
-  withPromptDefaults,
   type PromptDefaults,
 } from "@/lib/promptDefaults";
 import { hasGeminiApiKey } from "@/lib/geminiKey";
@@ -68,6 +71,7 @@ interface PromptBuilderProps {
   onBuilderReset?: () => void;
   onBuilderUndo?: (payload: { previewContent: string; builderLoad: BuilderLoadPayload | null }) => void;
   onGenerated?: () => void;
+  onOpenGeminiKey?: () => void;
 }
 
 type BuilderUndoSnapshot = {
@@ -114,6 +118,7 @@ const PromptBuilder = ({
   onBuilderReset,
   onBuilderUndo,
   onGenerated,
+  onOpenGeminiKey,
 }: PromptBuilderProps) => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -128,6 +133,8 @@ const PromptBuilder = ({
   const taskAutoFillRef = useRef("");
 
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(true);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
@@ -200,20 +207,16 @@ const PromptBuilder = ({
     }
   }, [location.pathname, location.search, onPromptChange, syncPreviewFromFields]);
 
-  useEffect(() => {
-    setPromptData((prev) =>
-      prev.task || prev.tone || prev.outputFormat ? prev : withPromptDefaults(prev),
-    );
-  }, []);
-
-  // Apply new defaults immediately when settings are saved
+  // Apply new defaults when user saves Settings (explicit choice only)
   useEffect(() => {
     const onDefaultsUpdated = (event: Event) => {
       const defaults = (event as CustomEvent<PromptDefaults>).detail ?? readPromptDefaults();
       setPromptData((prev) => ({
         ...prev,
-        tone: defaults.defaultTone,
-        outputFormat: defaults.defaultOutputFormat,
+        tone: prev.tone?.trim() ? prev.tone : defaults.defaultTone,
+        outputFormat: prev.outputFormat?.trim()
+          ? prev.outputFormat
+          : defaults.defaultOutputFormat,
       }));
     };
 
@@ -275,9 +278,7 @@ const PromptBuilder = ({
   const handleTaskChange = useCallback((value: string) => {
     preserveAiPreviewRef.current = false;
     taskAutoFillRef.current = "";
-    setPromptData((prev) =>
-      withPromptDefaults(applyTaskFieldBundle(prev, value)),
-    );
+    setPromptData((prev) => applyTaskFieldBundle(prev, value));
   }, []);
 
   // While typing a task, softly fill empty fields when topic is recognizable
@@ -290,7 +291,7 @@ const PromptBuilder = ({
       const bundle = findTaskBundleMatch(task);
       if (!bundle) return;
       taskAutoFillRef.current = task;
-      setPromptData((prev) => withPromptDefaults(fillEmptyFromBundle(prev, bundle)));
+      setPromptData((prev) => fillEmptyFromBundle(prev, bundle));
     }, 500);
 
     return () => window.clearTimeout(timer);
@@ -318,6 +319,7 @@ const PromptBuilder = ({
       return;
     }
     navigator.clipboard.writeText(text);
+    trackProductEvent("prompt_copied", { source: "builder" });
     toast({ title: "Copied", description: "Structured prompt ready for ChatGPT / Claude." });
   }, [currentPrompt, promptData, toast]);
 
@@ -356,7 +358,7 @@ const PromptBuilder = ({
           | undefined;
         const quotaHint =
           hosted && typeof hosted.remaining === "number"
-            ? ` ${hosted.remaining} free AI runs left today.`
+            ? ` ${hosted.remaining} free AI runs left today (resets midnight UTC).`
             : hasGeminiApiKey()
               ? " Using your API key."
               : "";
@@ -393,7 +395,7 @@ const PromptBuilder = ({
     if (!isAuthenticated) {
       toast({
         title: "Sign in to save",
-        description: "Generate is free as a guest; saving requires an account.",
+        description: "Copying is free — sign in to save prompts and share to community.",
       });
       navigate("/login");
       return;
@@ -436,8 +438,8 @@ const PromptBuilder = ({
         toast({
           title: editingPromptId ? "Prompt updated" : "Prompt Saved",
           description: saveAsPublic
-            ? "Saved and shared to Community."
-            : "Saved to My Prompts.",
+            ? "Saved to My Prompts and shared to community."
+            : "Saved to My Prompts (private).",
         });
         if (onPromptSaved) onPromptSaved();
       } else {
@@ -456,10 +458,18 @@ const PromptBuilder = ({
   };
 
   const handleSaveTemplate = () => {
+    if (!isAuthenticated) {
+      toast({
+        title: "Sign in to save",
+        description: "Field recipes are saved to My Blueprints after login.",
+      });
+      navigate("/login");
+      return;
+    }
     if (!promptData.task) {
       toast({
         title: "Error",
-        description: "Please enter a task before saving as template",
+        description: "Please enter a task before saving a field recipe",
         variant: "destructive",
       });
       return;
@@ -492,6 +502,7 @@ const PromptBuilder = ({
     };
     setPromptData(safeTemplateData);
     syncPreviewFromFields(safeTemplateData);
+    trackProductEvent("template_used", { source: "builder_load" });
   };
 
   const handleReset = () => {
@@ -518,8 +529,7 @@ const PromptBuilder = ({
     localStorage.removeItem("selectedPrompt");
 
     taskAutoFillRef.current = "";
-    const fresh = withPromptDefaults({ ...EMPTY_PROMPT_DATA });
-    setPromptData(fresh);
+    setPromptData({ ...EMPTY_PROMPT_DATA });
     preserveAiPreviewRef.current = true;
     onPromptChange("");
     onBuilderReset?.();
@@ -556,9 +566,17 @@ const PromptBuilder = ({
     toast({ title: "Restored", description: "Previous builder state recovered." });
   };
 
+  useEffect(() => {
+    if (
+      promptData.task?.trim() &&
+      (promptData.role?.trim() || promptData.tone?.trim() || promptData.context?.trim())
+    ) {
+      setDetailsOpen(true);
+    }
+  }, [promptData.task, promptData.role, promptData.tone, promptData.context]);
+
   return (
     <div className="flex flex-col h-full">
-      {/* Keyboard Shortcuts */}
       <KeyboardShortcuts
         onGeneratePrompt={handleGenerateWithAI}
         onSavePrompt={handleSavePrompt}
@@ -566,94 +584,73 @@ const PromptBuilder = ({
         onLoadTemplate={handleOpenLoadTemplate}
         onToggleAdvanced={() => setIsAdvancedOpen(!isAdvancedOpen)}
       />
-      
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-        {/* Basic Fields */}
-        <Card className="border-border/40">
-          <CardHeader className="pb-3 pt-4 px-4">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium flex items-center gap-1.5">
-                <Zap className="w-3.5 h-3.5 text-primary" />
-                Build your prompt
-              </CardTitle>
-              <div className="flex items-center gap-1">
-                {undoSnapshot && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleUndo}
-                    className="h-6 text-xs text-primary"
-                  >
-                    <Undo2 className="w-3 h-3 mr-1" />
-                    Undo
-                  </Button>
-                )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleReset}
-                  className="h-6 text-xs text-muted-foreground"
-                >
-                  Reset
-                </Button>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="px-4 pb-4 space-y-4">
-            <div className="flex flex-wrap gap-1.5">
-              {(
-                [
-                  { key: "task", label: "Task" },
-                  { key: "role", label: "Role" },
-                  { key: "context", label: "Context" },
-                  { key: "tone", label: "Tone" },
-                  { key: "outputFormat", label: "Format" },
-                ] as const
-              ).map(({ key, label }) => (
-                <Badge
-                  key={key}
-                  variant={(promptData[key] as string)?.trim() ? "default" : "outline"}
-                  className="text-[10px] px-2 py-0 font-normal"
-                >
-                  {label}
-                </Badge>
-              ))}
-            </div>
 
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-foreground uppercase tracking-wide">
-                Task <span className="text-primary font-normal normal-case">(start here)</span>
-              </Label>
-              <SmartInput
-                value={promptData.task}
-                onChange={handleTaskChange}
-                placeholder="Type e.g. social media, blog, code review…"
-                suggestions={fieldSuggestions.task}
-                contextText={builderContext}
-                suggestionField="task"
-                maxSuggestions={14}
-                multiline
-              />
-              <p className="text-[11px] text-muted-foreground">
-                Suggestions filter as you type. Related fields auto-fill when we recognize the topic.
-              </p>
-            </div>
+      <div className="shrink-0 px-4 pt-3 pb-2 border-b border-border/15 space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-sm font-medium text-foreground/90">Compose</h2>
+          <div className="flex items-center gap-0.5">
+            {undoSnapshot && (
+              <Button variant="ghost" size="sm" onClick={handleUndo} className="h-7 text-xs text-muted-foreground">
+                <Undo2 className="w-3 h-3 mr-1" />
+                Undo
+              </Button>
+            )}
+            <Button variant="ghost" size="sm" onClick={handleReset} className="h-7 text-xs text-muted-foreground">
+              Reset
+            </Button>
+          </div>
+        </div>
+        <BuilderProgress promptData={promptData} />
+      </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Role</Label>
-                <SmartInput
+      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4 min-h-0">
+        <section className="space-y-3">
+          <BuilderField
+            label="What should the AI do?"
+            hint="Type like a search — suggestions update each word. Tab to finish the top match."
+            value={promptData.task}
+            onChange={handleTaskChange}
+            placeholder="Start typing, e.g. create social media…"
+            suggestions={fieldSuggestions.task}
+            contextText={builderContext}
+            suggestionField="task"
+            maxSuggestions={20}
+            googleStyle
+            multiline
+          />
+        </section>
+
+        <section className="rounded-2xl border border-border/15 bg-muted/10">
+          <button
+            type="button"
+            onClick={() => setDetailsOpen((o) => !o)}
+            className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-muted/20 transition-colors"
+          >
+            <div>
+              <p className="text-sm font-medium text-foreground/85">Prompt details</p>
+              <p className="text-xs text-muted-foreground/70 mt-0.5">Role, tone, context, format</p>
+            </div>
+            {detailsOpen ? (
+              <ChevronUp className="w-4 h-4 text-muted-foreground shrink-0" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+            )}
+          </button>
+
+          {detailsOpen && (
+            <div className="px-4 pb-4 pt-1 space-y-5 border-t border-border/10">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                <BuilderField
+                  label="Role"
                   value={promptData.role}
                   onChange={handleRoleChange}
-                  placeholder="Who should the AI act as?"
+                  placeholder="Who is the AI?"
                   suggestions={fieldSuggestions.role}
                   contextText={builderContext}
                   suggestionField="role"
                 />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Tone</Label>
-                <SmartInput
+                <BuilderField
+                  label="Tone"
                   value={promptData.tone}
                   onChange={handleToneChange}
                   placeholder="How should it sound?"
@@ -662,149 +659,157 @@ const PromptBuilder = ({
                   suggestionField="tone"
                 />
               </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Context</Label>
-              <SmartInput
+              <BuilderField
+                label="Context"
+                hint="Same search-style suggestions — Tab to autocomplete."
                 value={promptData.context}
                 onChange={handleContextChange}
-                placeholder="Background or situation…"
+                placeholder="Start typing context, e.g. multi-platform campaign…"
                 suggestions={fieldSuggestions.context}
                 contextText={builderContext}
                 suggestionField="context"
+                maxSuggestions={20}
+                googleStyle
                 multiline
               />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Output Format</Label>
-              <SmartInput
+              <BuilderField
+                label="Output format"
                 value={promptData.outputFormat}
                 onChange={handleOutputFormatChange}
-                placeholder="What shape should the answer take?"
+                placeholder="e.g. Markdown, Social posts"
                 suggestions={fieldSuggestions.outputFormat}
                 contextText={builderContext}
                 suggestionField="outputFormat"
               />
             </div>
-          </CardContent>
-        </Card>
+          )}
+        </section>
 
-        {/* Advanced Fields Toggle */}
-        <Button
-          variant="ghost"
-          onClick={() => setIsAdvancedOpen(!isAdvancedOpen)}
-          className="w-full justify-between h-9 text-xs text-muted-foreground hover:text-foreground border border-border/30 hover:border-border/60 rounded-lg px-3"
-        >
-          <span className="flex items-center gap-1.5">
-            <Settings className="w-3.5 h-3.5" />
-            Advanced Options
-          </span>
-          {isAdvancedOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-        </Button>
+        <section>
+          <button
+            type="button"
+            onClick={() => setIsAdvancedOpen(!isAdvancedOpen)}
+            className="w-full flex items-center justify-between py-2 text-xs text-muted-foreground/80 hover:text-muted-foreground transition-colors"
+          >
+            <span className="flex items-center gap-1.5">
+              <Settings className="w-3.5 h-3.5" />
+              Fine-tune (audience, industry, constraints…)
+            </span>
+            {isAdvancedOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
 
-        {/* Advanced Fields */}
-        {isAdvancedOpen && (
-          <Card className="border-border/40 animate-slide-up">
-            <CardHeader className="pb-3 pt-4 px-4">
-              <CardTitle className="text-sm font-medium flex items-center gap-1.5">
-                <Settings className="w-3.5 h-3.5" />
-                Advanced Configuration
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="px-4 pb-4 space-y-4">
+          {isAdvancedOpen && (
+            <div className="mt-3 rounded-2xl border border-border/15 bg-muted/10 px-4 py-4 space-y-5">
               {([
-                { label: "Constraints", field: "constraints" as BuilderSuggestionField, value: promptData.constraints, onChange: handleConstraintsChange, placeholder: "e.g., TypeScript strict, Include unit tests...", suggestions: fieldSuggestions.constraints, multiline: true },
-                { label: "Response Length", field: "responseLength" as BuilderSuggestionField, value: promptData.responseLength, onChange: handleResponseLengthChange, placeholder: "Select or specify length...", suggestions: fieldSuggestions.responseLength },
-                { label: "Target Audience", field: "audience" as BuilderSuggestionField, value: promptData.audience, onChange: handleAudienceChange, placeholder: "e.g., Senior engineers, QA team...", suggestions: fieldSuggestions.audience },
-                { label: "Industry", field: "industry" as BuilderSuggestionField, value: promptData.industry, onChange: handleIndustryChange, placeholder: "e.g., B2B SaaS, FinTech...", suggestions: fieldSuggestions.industry },
-                { label: "Mood", field: "mood" as BuilderSuggestionField, value: promptData.mood, onChange: handleMoodChange, placeholder: "e.g., Analytical, Urgent (incident)...", suggestions: fieldSuggestions.mood },
-                { label: "Language", field: "language" as BuilderSuggestionField, value: promptData.language, onChange: handleLanguageChange, placeholder: "e.g., TypeScript, Python...", suggestions: fieldSuggestions.language },
-                { label: "Complexity", field: "complexity" as BuilderSuggestionField, value: promptData.complexity, onChange: handleComplexityChange, placeholder: "e.g., Senior engineer, Architecture level...", suggestions: fieldSuggestions.complexity },
-                { label: "Custom Variables", field: undefined, value: promptData.customVariables, onChange: handleCustomVariablesChange, placeholder: "e.g., company_name: Acme Corp...", multiline: true },
+                { label: "Constraints", field: "constraints" as BuilderSuggestionField, value: promptData.constraints, onChange: handleConstraintsChange, placeholder: "Limits or requirements", suggestions: fieldSuggestions.constraints, multiline: true },
+                { label: "Response length", field: "responseLength" as BuilderSuggestionField, value: promptData.responseLength, onChange: handleResponseLengthChange, placeholder: "Brief, medium, comprehensive", suggestions: fieldSuggestions.responseLength },
+                { label: "Audience", field: "audience" as BuilderSuggestionField, value: promptData.audience, onChange: handleAudienceChange, placeholder: "Who will read this?", suggestions: fieldSuggestions.audience },
+                { label: "Industry", field: "industry" as BuilderSuggestionField, value: promptData.industry, onChange: handleIndustryChange, placeholder: "Domain or market", suggestions: fieldSuggestions.industry },
+                { label: "Mood", field: "mood" as BuilderSuggestionField, value: promptData.mood, onChange: handleMoodChange, placeholder: "Emotional tone", suggestions: fieldSuggestions.mood },
+                { label: "Language", field: "language" as BuilderSuggestionField, value: promptData.language, onChange: handleLanguageChange, placeholder: "Output language", suggestions: fieldSuggestions.language },
+                { label: "Complexity", field: "complexity" as BuilderSuggestionField, value: promptData.complexity, onChange: handleComplexityChange, placeholder: "Skill level", suggestions: fieldSuggestions.complexity },
+                { label: "Custom variables", field: undefined, value: promptData.customVariables, onChange: handleCustomVariablesChange, placeholder: "key: value pairs", multiline: true },
               ]).map(({ label, field, value, onChange, placeholder, suggestions, multiline }) => (
-                <div key={label} className="space-y-1.5">
-                  <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{label}</Label>
-                  <SmartInput
-                    value={value}
-                    onChange={onChange}
-                    placeholder={placeholder}
-                    suggestions={suggestions}
-                    contextText={builderContext}
-                    suggestionField={field}
-                    multiline={multiline}
-                  />
-                </div>
+                <BuilderField
+                  key={label}
+                  label={label}
+                  value={value}
+                  onChange={onChange}
+                  placeholder={placeholder}
+                  suggestions={suggestions}
+                  contextText={builderContext}
+                  suggestionField={field}
+                  multiline={multiline}
+                />
               ))}
-            </CardContent>
-          </Card>
-        )}
+            </div>
+          )}
+        </section>
       </div>
 
-      {/* Footer Actions */}
-      <div className="shrink-0 px-4 py-3 border-t border-border/20 space-y-2">
-        <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
-          <input
-            type="checkbox"
-            className="rounded border-border"
-            checked={saveAsPublic}
-            onChange={(e) => setSaveAsPublic(e.target.checked)}
-          />
-          Share to Community when saving
-        </label>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-8 text-xs text-muted-foreground hover:text-foreground"
-          onClick={handleSaveTemplate}
-        >
-          <Save className="w-3.5 h-3.5 mr-1.5" />
-          Save Template
-        </Button>
+      <div className="shrink-0 px-4 py-3 border-t border-border/15 bg-card/30 space-y-2">
         <Button
           size="sm"
-          className="h-9 w-full text-xs bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
+          className="h-10 w-full text-sm font-medium rounded-xl shadow-sm"
           disabled={!hasPreviewablePrompt(promptData) && !currentPrompt.trim()}
           onClick={handleCopyPrompt}
         >
-          <Copy className="w-3.5 h-3.5 mr-1.5" />
-          Copy prompt for ChatGPT / Claude
+          <Copy className="w-4 h-4 mr-2 opacity-80" />
+          Copy prompt
         </Button>
-        <div className="flex items-center gap-2">
+
+        <div
+          className={`flex items-center justify-between gap-3 rounded-xl border border-border/15 bg-muted/10 px-3 py-2 ${
+            !isAuthenticated ? "opacity-60" : ""
+          }`}
+        >
+          <Label
+            htmlFor="share-to-community"
+            className={`text-xs font-normal text-muted-foreground ${
+              isAuthenticated ? "cursor-pointer" : "cursor-not-allowed"
+            }`}
+          >
+            Share to community
+            {!isAuthenticated && (
+              <span className="block text-[10px] mt-0.5">Sign in to publish</span>
+            )}
+          </Label>
+          <Switch
+            id="share-to-community"
+            checked={saveAsPublic}
+            disabled={!isAuthenticated}
+            onCheckedChange={setSaveAsPublic}
+            aria-label="Share to community when saving"
+          />
+        </div>
+
+        <div className="flex gap-2">
           <Button
-            variant="outline"
+            variant="secondary"
             size="sm"
-            className="h-8 text-xs flex-1"
+            className="h-9 flex-1 rounded-xl text-xs"
             disabled={!promptData.task || isSaving}
             onClick={handleSavePrompt}
           >
             {isSaving ? (
               <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-primary mr-1.5" />
             ) : (
-              <Save className="w-3.5 h-3.5 mr-1.5" />
+              <Save className="w-3.5 h-3.5 mr-1.5 opacity-70" />
             )}
             {editingPromptId ? "Update" : "Save"}
           </Button>
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
-            className="h-8 text-xs flex-1 border-dashed"
+            className="h-9 flex-1 rounded-xl text-xs text-muted-foreground"
             disabled={!promptData.task || isGenerating}
             onClick={handleGenerateWithAI}
-            title="Optional — rewrites preview with Gemini"
           >
             {isGenerating ? (
               <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-primary mr-1.5" />
             ) : (
-              <Sparkles className="w-3.5 h-3.5 mr-1.5" />
+              <Sparkles className="w-3.5 h-3.5 mr-1.5 opacity-70" />
             )}
-            Enhance with AI
+            Enhance (optional)
           </Button>
+          <DropdownMenu open={moreOpen} onOpenChange={setMoreOpen}>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-9 w-9 rounded-xl px-0 shrink-0">
+                <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuItem onClick={handleSaveTemplate}>
+                Save field recipe
+              </DropdownMenuItem>
+              {onOpenGeminiKey && (
+                <DropdownMenuItem onClick={onOpenGeminiKey}>
+                  Gemini API key
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
-        <p className="text-[10px] text-center text-muted-foreground">
-          Structured preview is enough for most tools · AI enhance is optional
-        </p>
       </div>
 
       {/* Template Dialog */}

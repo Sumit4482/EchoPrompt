@@ -4,7 +4,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Zap, Mail, Lock, User, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -67,6 +66,10 @@ const Login = () => {
       newErrors.username = "Username is required";
     } else if (registerForm.username.length < 3) {
       newErrors.username = "Username must be at least 3 characters";
+    } else if (!/^[a-zA-Z0-9_]+$/.test(registerForm.username)) {
+      newErrors.username = "Letters, numbers, and underscores only";
+    } else if (registerForm.username.length > 30) {
+      newErrors.username = "Username cannot exceed 30 characters";
     }
     
     if (!registerForm.password) {
@@ -359,12 +362,6 @@ const Login = () => {
                 </form>
               </TabsContent>
             </Tabs>
-
-            <Alert className="mt-3 py-2">
-              <AlertDescription className="text-xs text-center">
-                By continuing, you agree to our Terms of Service and Privacy Policy.
-              </AlertDescription>
-            </Alert>
           </CardContent>
         </Card>
 

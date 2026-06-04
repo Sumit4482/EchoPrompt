@@ -483,6 +483,28 @@ class ApiService {
     return this.handleResponse<Record<string, string[]>>(response);
   }
 
+  async searchFieldSuggestions(
+    field: string,
+    q: string,
+    limit = 25,
+  ): Promise<ApiResponse<string[]>> {
+    const params = new URLSearchParams({ field, q, limit: String(limit) });
+    const response = await fetch(`${API_BASE_URL}/analytics/suggestions/search?${params}`);
+    return this.handleResponse<string[]>(response);
+  }
+
+  async trackProductEvent(
+    eventType: 'prompt_copied' | 'template_used' | 'prompt_saved',
+    metadata?: Record<string, unknown>,
+  ): Promise<ApiResponse> {
+    const response = await fetch(`${API_BASE_URL}/analytics/events`, {
+      method: 'POST',
+      headers: { ...this.getAuthHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ eventType, metadata }),
+    });
+    return this.handleResponse(response);
+  }
+
   async recordFieldSuggestion(
     field: string,
     value: string,

@@ -46,6 +46,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiService, GeneratedPrompt } from "@/services/api";
+import { trackProductEvent } from "@/lib/productAnalytics";
 import LibraryPageLayout from "@/components/EchoPrompt/LibraryPageLayout";
 
 const LIST_LIMIT = 100;
@@ -163,6 +164,10 @@ const MyPrompts = () => {
   const handleCopyPrompt = async (prompt: GeneratedPrompt) => {
     try {
       await navigator.clipboard.writeText(prompt.content || "");
+      if (prompt._id) {
+        apiService.copyPrompt(prompt._id).catch(() => {});
+      }
+      trackProductEvent("prompt_copied", { source: "my_prompts", promptId: prompt._id });
       toast({ title: "Copied", description: "Prompt copied to clipboard." });
     } catch {
       toast({ title: "Error", description: "Failed to copy.", variant: "destructive" });
@@ -207,7 +212,7 @@ const MyPrompts = () => {
     if (prompt._id) {
       localStorage.setItem("editingPromptId", prompt._id);
     }
-    navigate("/?tab=builder");
+    navigate("/");
     toast({ title: "Prompt loaded", description: "Opened in the builder." });
   };
 
@@ -467,7 +472,7 @@ const MyPrompts = () => {
             </div>
             <div className="flex items-center gap-3">
               <Switch checked={editedIsPublic} onCheckedChange={setEditedIsPublic} />
-              <Label>Public prompt</Label>
+              <Label>Share to community (public)</Label>
             </div>
           </div>
           <DialogFooter>

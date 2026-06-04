@@ -45,7 +45,7 @@ const Header = () => {
               onClick={() => navigate('/my-templates')}
             >
               <Database className="w-4 h-4 mr-2" />
-              My Templates
+              My Blueprints
             </Button>
 
             <Button
@@ -123,7 +123,7 @@ const Header = () => {
               >
                 <Database className="w-5 h-5 mr-3" />
                 <div>
-                  <p className="font-medium">My Templates</p>
+                  <p className="font-medium">My Blueprints</p>
                   <p className="text-xs text-muted-foreground">Manage your templates</p>
                 </div>
               </Button>
@@ -147,7 +147,7 @@ const Header = () => {
                   <BarChart3 className="w-5 h-5 mr-3" />
                   <div>
                     <p className="font-medium">Analytics</p>
-                    <p className="text-xs text-muted-foreground">Stats, trending & export</p>
+                    <p className="text-xs text-muted-foreground">Platform stats & trending</p>
                   </div>
                 </Button>
               )}

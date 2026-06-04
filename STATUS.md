@@ -1,24 +1,29 @@
 # EchoPrompt — Feature Status
 
-## Recently completed
+## Product spec
+See [PRODUCT.md](./PRODUCT.md) for canonical decisions.
 
-| Feature | Notes |
-|---------|--------|
-| Forgot password | `POST /auth/forgot-password`, `POST /auth/reset-password`; dev returns token |
-| Profile edit | Profile menu → Edit profile; `PUT /auth/profile` |
-| Make public on save | Checkbox in builder footer |
-| Generate vs Save | `POST /prompts/generate` preview-only; persist on `POST /prompts/save` |
-| Analytics UI | `/analytics` — overview, trending, insights, leaderboard, export |
-| Prompt rating | Stars on Community cards; `POST /prompts/:id/rate` |
-| Guest UX | Banner on dashboard when logged out |
-| Dead code | Removed `Library.tsx`, `generatePromptLocal` |
-| Route guards | `/my-prompts`, `/my-templates`, `/analytics` protected |
-| Mobile builder | `activePanel` toggle + extra bottom padding on builder tab |
+## Recently completed (PM implementation)
 
-## Still open
+| Area | Notes |
+|------|--------|
+| Core loop | Copy primary; `prompt_copied` analytics; guest save gate copy |
+| Blueprints | “Save field recipe”, Blueprints tab copy, template_used events |
+| AI & limits | Hosted quota consume fix; UTC hint; BYOK for guests (header + builder) |
+| Drafts | Cleared on logout |
+| Auth | Username `a-z0-9_` only (API + login form) |
+| Ratings | Average shown at 3+ ratings; count always |
+| Mobile | Preview toggle below `md`; side-by-side from `md` up |
+| Analytics | `POST /analytics/events`; `prompt_saved` on save |
+| Deploy docs | env examples, seed scripts in README |
 
-- [ ] Email delivery for password reset (production)
-- [ ] Template categories route order bug (if still present)
-- [ ] My Templates — edit template UI
-- [ ] Remove hardcoded Gemini fallback key in backend (if any)
-- [ ] QA mobile builder/preview on real devices
+## Still open (ops)
+
+- [ ] Rotate any Gemini key pasted in chat; set only on Render (see README launch notes)
+- [ ] Production SMTP on Render (`SMTP_*` + `FRONTEND_URL`) — see backend/env.example
+- [ ] Run `npm run seed` + `npm run seed:suggestions` on deploy
+- [ ] QA mobile builder on real devices
+
+## Admin
+
+- `ADMIN_EMAILS=sbanwakde4482@gmail.com` — user must register/login with **this exact email** to see `/analytics`

@@ -2,6 +2,7 @@ import express from 'express';
 import { body, query, validationResult } from 'express-validator';
 import { Types } from 'mongoose';
 import { Template } from '../models/Template';
+import Analytics from '../models/Analytics';
 import { authenticate, optionalAuth } from '../middleware/auth';
 import { AuthenticatedRequest, ApiResponse, TemplateQuery } from '../types';
 import { PromptGenerator } from '../utils/promptGenerator';
@@ -170,6 +171,21 @@ router.post('/', authenticate, [
     req.user!.usage.templatesCreated += 1;
     await req.user!.save();
     await template.populate('createdBy', 'username firstName lastName');
+
+    try {
+      await Analytics.logEvent({
+        userId: req.user!._id,
+        eventType: 'template_created',
+        metadata: {
+          templateId: template._id as import('mongoose').Types.ObjectId,
+          category,
+        },
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+      });
+    } catch (analyticsError) {
+      console.error('Failed to log template_created:', analyticsError);
+    }
 
     res.status(201).json({ success: true, data: template, message: 'Template created successfully' } as ApiResponse);
   } catch (error) {
