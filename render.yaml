@@ -21,7 +21,7 @@ services:
       - key: GEMINI_API_KEY
         sync: false
       - key: ADMIN_EMAILS
-        value: sbanwakde4482@gmail.com
+        sync: false
       - key: FRONTEND_URL
         sync: false
       - key: SMTP_HOST

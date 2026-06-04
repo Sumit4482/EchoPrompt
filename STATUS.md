@@ -19,11 +19,11 @@ See [PRODUCT.md](./PRODUCT.md) for canonical decisions.
 
 ## Still open (ops)
 
-- [ ] Rotate any Gemini key pasted in chat; set only on Render (see README launch notes)
+- [ ] Rotate any exposed Gemini key; set only on Render (see README launch notes)
 - [ ] Production SMTP on Render (`SMTP_*` + `FRONTEND_URL`) — see backend/env.example
 - [ ] Run `npm run seed` + `npm run seed:suggestions` on deploy
 - [ ] QA mobile builder on real devices
 
 ## Admin
 
-- `ADMIN_EMAILS=sbanwakde4482@gmail.com` — user must register/login with **this exact email** to see `/analytics`
+- Set `ADMIN_EMAILS` in backend env — user must register/login with **that exact email** to see `/analytics`

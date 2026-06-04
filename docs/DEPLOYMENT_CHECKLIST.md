@@ -7,10 +7,10 @@ Use this in order. Check off as you go.
 ## A. Before you deploy (secrets & accounts)
 
 - [ ] **Google AI Studio** — revoke old Gemini keys; create **one new** key (never paste in chat again)
-- [ ] **Brevo** — SMTP key active; sender `Test <sbanwakde4482@gmail.com>` verified
+- [ ] **Brevo** — SMTP key active; sender address verified in Brevo dashboard
 - [ ] **MongoDB** — Atlas cluster **or** Render Postgres/Mongo from `render.yaml` (`echoprompt-db`)
 - [ ] **GitHub** — latest code pushed to repo Render/Netlify will build from
-- [ ] **Admin account** — plan to register/login as `sbanwakde4482@gmail.com` for `/analytics`
+- [ ] **Admin account** — set `ADMIN_EMAILS` and register/login with that email for `/analytics`
 
 ---
 
@@ -28,15 +28,15 @@ Set in **Environment** (Dashboard → service → Environment):
 | `GEMINI_MODEL` | `gemini-2.5-flash` | optional |
 | `HOSTED_AI_LIMIT_GUEST` | `10` | in yaml |
 | `HOSTED_AI_LIMIT_AUTH` | `30` | in yaml |
-| `ADMIN_EMAILS` | `sbanwakde4482@gmail.com` | in yaml |
+| `ADMIN_EMAILS` | Your admin email(s), comma-separated | you set |
 | `CORS_ORIGIN` | Your **live frontend URL** (no trailing slash) | **pending** |
 | `FRONTEND_URL` | Same as frontend URL (for reset emails) | **pending** |
 | `SMTP_HOST` | `smtp-relay.brevo.com` | you set |
 | `SMTP_PORT` | `587` | in yaml |
 | `SMTP_SECURE` | `false` | in yaml |
-| `SMTP_USER` | `acbf20001@smtp-brevo.com` | you set |
+| `SMTP_USER` | Brevo SMTP login (from dashboard) | you set |
 | `SMTP_PASS` | Brevo SMTP key (from dashboard) | you set |
-| `SMTP_FROM` | `Test <sbanwakde4482@gmail.com>` | you set |
+| `SMTP_FROM` | Verified sender, e.g. `EchoPrompt <noreply@yourdomain.com>` | you set |
 
 Deploy steps:
 
@@ -73,7 +73,7 @@ Deploy steps:
 
 - [ ] Open `/` — builder loads, suggestions work
 - [ ] Guest — type task → **Copy** works
-- [ ] **Register** / login as `sbanwakde4482@gmail.com`
+- [ ] **Register** / login as your `ADMIN_EMAILS` account
 - [ ] **Enhance** — quota message or success
 - [ ] **Save** prompt; toggle **Share to community**
 - [ ] **Blueprints** tab — load a blueprint
@@ -86,8 +86,8 @@ Deploy steps:
 
 ## E. Security (do within 24h of launch)
 
-- [ ] Rotate **Brevo SMTP key** (was pasted in chat) → update Render + local `.env`
-- [ ] Rotate **Gemini key** if ever pasted in chat → Render only
+- [ ] Rotate **Brevo SMTP key** if it was ever exposed → update Render + local `.env`
+- [ ] Rotate **Gemini key** if it was ever exposed → Render only
 - [ ] Confirm no `.env` committed: `git status` clean of secrets
 - [ ] MongoDB Atlas IP allowlist / Render DB not publicly open without auth
 
@@ -108,7 +108,7 @@ Deploy steps:
 | Item | Status |
 |------|--------|
 | App / product code | Ready for beta |
-| SMTP local (`backend/.env`) | Configured |
+| SMTP local (`backend/.env`) | Set locally (not committed) |
 | SMTP on Render | **You must paste `SMTP_PASS` + redeploy** |
 | `FRONTEND_URL` / `CORS_ORIGIN` | **Waiting on frontend URL** |
 | `VITE_API_URL` on frontend | **Waiting on backend URL** |
