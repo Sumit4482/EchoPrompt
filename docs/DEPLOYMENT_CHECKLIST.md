@@ -55,8 +55,9 @@ Deploy steps:
 
 ### Option 1 — Netlify (recommended in PRODUCT.md)
 
-- [ ] New site from Git; build command: `npm run build`
-- [ ] Publish directory: `dist`
+- [ ] `netlify.toml` in repo sets `publish = "dist"` (fixes white screen if UI was wrong)
+- [ ] New site from Git; build command: `npm run build` (or use netlify.toml)
+- [ ] Publish directory: **`dist`** (must NOT be repo root / empty)
 - [ ] Env: `VITE_API_URL=https://<your-backend>.onrender.com/api`
 - [ ] Note live URL → go back to Render and set `CORS_ORIGIN` + `FRONTEND_URL` to that URL
 - [ ] Redeploy **backend** after CORS/FRONTEND_URL change
